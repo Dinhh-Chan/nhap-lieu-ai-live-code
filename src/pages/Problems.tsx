@@ -50,6 +50,8 @@ export default function Problems() {
   const total = problems.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const paged = useMemo(() => problems.slice((page - 1) * pageSize, page * pageSize), [problems, page, pageSize]);
+  const startPage = useMemo(() => Math.floor((page - 1) / 10) * 10 + 1, [page]);
+  const endPage = useMemo(() => Math.min(totalPages, startPage + 9), [totalPages, startPage]);
 
   const createMutation = useMutation({
     mutationFn: ProblemsApi.create,
@@ -290,13 +292,16 @@ export default function Problems() {
             <PaginationItem>
               <PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); setPage((p) => Math.max(1, p - 1)); }} />
             </PaginationItem>
-            {Array.from({ length: totalPages }).map((_, i) => (
-              <PaginationItem key={i}>
-                <PaginationLink href="#" isActive={page === i + 1} onClick={(e) => { e.preventDefault(); setPage(i + 1); }}>
-                  {i + 1}
-                </PaginationLink>
-              </PaginationItem>
-            ))}
+            {Array.from({ length: endPage - startPage + 1 }).map((_, i) => {
+              const p = startPage + i;
+              return (
+                <PaginationItem key={p}>
+                  <PaginationLink href="#" isActive={page === p} onClick={(e) => { e.preventDefault(); setPage(p); }}>
+                    {p}
+                  </PaginationLink>
+                </PaginationItem>
+              );
+            })}
             <PaginationItem>
               <PaginationNext href="#" onClick={(e) => { e.preventDefault(); setPage((p) => Math.min(totalPages, p + 1)); }} />
             </PaginationItem>

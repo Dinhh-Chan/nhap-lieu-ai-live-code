@@ -34,11 +34,12 @@ export default function Topics() {
     queryFn: () => TopicsApi.list(),
   });
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(10);
-  const topics = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  const [pageSize] = useState(10);  const topics = useMemo(() => (Array.isArray(data) ? data : []), [data]);
   const total = topics.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const paged = useMemo(() => topics.slice((page - 1) * pageSize, page * pageSize), [topics, page, pageSize]);
+  const startPage = useMemo(() => Math.floor((page - 1) / 10) * 10 + 1, [page]);
+  const endPage = useMemo(() => Math.min(totalPages, startPage + 9), [totalPages, startPage]);
 
   const createMutation = useMutation({
     mutationFn: TopicsApi.create,
@@ -216,20 +217,23 @@ export default function Topics() {
                 }}
               />
             </PaginationItem>
-            {Array.from({ length: totalPages }).map((_, i) => (
-              <PaginationItem key={i}>
-                <PaginationLink
-                  href="#"
-                  isActive={page === i + 1}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setPage(i + 1);
-                  }}
-                >
-                  {i + 1}
-                </PaginationLink>
-              </PaginationItem>
-            ))}
+            {Array.from({ length: endPage - startPage + 1 }).map((_, i) => {
+              const p = startPage + i;
+              return (
+                <PaginationItem key={p}>
+                  <PaginationLink
+                    href="#"
+                    isActive={page === p}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPage(p);
+                    }}
+                  >
+                    {p}
+                  </PaginationLink>
+                </PaginationItem>
+              );
+            })}
             <PaginationItem>
               <PaginationNext
                 href="#"

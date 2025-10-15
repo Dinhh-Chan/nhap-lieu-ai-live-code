@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -28,35 +28,62 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { mockTestCases, mockProblems } from "@/lib/mockData";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { TestCasesApi, type TestCase } from "@/services/test-cases";
+import { ProblemsApi, type Problem } from "@/services/problems";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { toast } from "sonner";
 
 export default function TestCases() {
-  const [testCases, setTestCases] = useState(mockTestCases);
   const [open, setOpen] = useState(false);
-  const [editingTestCase, setEditingTestCase] = useState<typeof mockTestCases[0] | null>(null);
+  const [editingTestCase, setEditingTestCase] = useState<TestCase | null>(null);
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(20);
+  const { data: testCasesData, isLoading } = useQuery({
+    queryKey: ["test-cases", { page, pageSize }],
+    queryFn: () => TestCasesApi.listPage(page, pageSize),
+    placeholderData: (prev) => prev,
+  });
+  const { data: problemsData } = useQuery({ queryKey: ["problems"], queryFn: () => ProblemsApi.list() });
+  const testCases = useMemo(() => (Array.isArray(testCasesData) ? testCasesData : []), [testCasesData]);
+  const problems = useMemo(() => (Array.isArray(problemsData) ? problemsData : []), [problemsData]);
+  const startPage = useMemo(() => Math.floor((page - 1) / 10) * 10 + 1, [page]);
+  const endPage = useMemo(() => startPage + 9, [startPage]);
+
+  const createMutation = useMutation({
+    mutationFn: TestCasesApi.create,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["test-cases"] }); },
+  });
+  const updateMutation = useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: Partial<TestCase> }) => TestCasesApi.updateById(id, dto),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["test-cases"] }); },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => TestCasesApi.deleteById(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["test-cases"] }); },
+  });
 
   const getProblemName = (problemId: string) => {
-    return mockProblems.find(p => p._id === problemId)?.name || "Unknown";
+    return problems.find((p: Problem) => p._id === problemId)?.name || "Unknown";
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
-    if (editingTestCase) {
-      toast.success("Test Case updated successfully");
-    } else {
-      toast.success("Test Case created successfully");
-    }
-    
+    const formData = new FormData(e.currentTarget);
+    const dto = {
+      problem_id: String(formData.get("problem_id") || ""),
+      input_data: String(formData.get("input_data") || ""),
+      expected_output: String(formData.get("expected_output") || ""),
+      order_index: Number(formData.get("order_index") || 0),
+      is_public: Boolean(formData.get("is_public")),
+    } as Partial<TestCase>;
+    if (editingTestCase) updateMutation.mutate({ id: editingTestCase._id, dto }); else createMutation.mutate(dto as any);
     setOpen(false);
     setEditingTestCase(null);
   };
 
-  const handleDelete = (id: string) => {
-    setTestCases(testCases.filter(tc => tc._id !== id));
-    toast.success("Test Case deleted successfully");
-  };
+  const handleDelete = (id: string) => { deleteMutation.mutate(id); };
 
   return (
     <div className="p-8">
@@ -85,7 +112,7 @@ export default function TestCases() {
                     <SelectValue placeholder="Select a problem" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockProblems.map(problem => (
+                    {problems.map(problem => (
                       <SelectItem key={problem._id} value={problem._id}>
                         {problem.name}
                       </SelectItem>
@@ -195,6 +222,28 @@ export default function TestCases() {
             ))}
           </TableBody>
         </Table>
+      </div>
+      <div className="mt-4">
+        <Pagination>
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); setPage((p) => Math.max(1, p - 1)); }} />
+            </PaginationItem>
+            {Array.from({ length: endPage - startPage + 1 }).map((_, i) => {
+              const p = startPage + i;
+              return (
+                <PaginationItem key={p}>
+                  <PaginationLink href="#" isActive={page === p} onClick={(e) => { e.preventDefault(); setPage(p); }}>
+                    {p}
+                  </PaginationLink>
+                </PaginationItem>
+              );
+            })}
+            <PaginationItem>
+              <PaginationNext href="#" onClick={(e) => { e.preventDefault(); setPage((p) => p + 1); }} />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
       </div>
     </div>
   );
