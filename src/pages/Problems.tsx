@@ -33,6 +33,7 @@ import { ProblemsApi, type Problem } from "@/services/problems";
 import { TopicsApi, type Topic } from "@/services/topics";
 import { SubTopicsApi, type SubTopic } from "@/services/sub-topics";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
 export default function Problems() {
@@ -60,6 +61,42 @@ export default function Problems() {
   const subTopics = useMemo(() => (Array.isArray(subTopicsData) ? subTopicsData : []), [subTopicsData]);
   const getTopicName = (topicId?: string) => topics.find((t: Topic) => t._id === topicId)?.topic_name || "—";
   const getSubTopicName = (subTopicId?: string) => subTopics.find((st: SubTopic) => st._id === subTopicId)?.sub_topic_name || "—";
+  const [visibleCols, setVisibleCols] = useState({
+    no: true,
+    name: true,
+    topic: true,
+    subTopic: true,
+    difficulty: true,
+    tests: true,
+    status: true,
+    actions: true,
+  });
+  const [colWidth, setColWidth] = useState<Record<string, number>>({
+    no: 56,
+    name: 256,
+    topic: 192,
+    subTopic: 208,
+    difficulty: 128,
+    tests: 96,
+    status: 128,
+    actions: 112,
+  });
+  const initResize = (key: keyof typeof colWidth, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = colWidth[key] || 120;
+    const onMove = (ev: MouseEvent) => {
+      const delta = ev.clientX - startX;
+      setColWidth((prev) => ({ ...prev, [key]: Math.max(80, startW + delta) }));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
   const filtered = useMemo(() => {
@@ -192,6 +229,22 @@ export default function Problems() {
           <Button variant="outline" onClick={() => { setSearch(""); setTopicFilter(undefined); setSubTopicFilter(undefined); setDifficultyFilter(undefined); setPage(1); }}>
             Reset
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">Columns</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {Object.keys(visibleCols).map((key) => (
+                <DropdownMenuCheckboxItem
+                  key={key}
+                  checked={(visibleCols as any)[key]}
+                  onCheckedChange={(v) => setVisibleCols((prev) => ({ ...prev, [key]: Boolean(v) }))}
+                >
+                  {key}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <Dialog open={open} onOpenChange={setOpen}>
@@ -330,8 +383,14 @@ export default function Problems() {
         <Table className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-14">No.</TableHead>
-              <TableHead className="w-64">
+              {visibleCols.no && (
+                <TableHead className="relative" style={{ width: colWidth.no }}>
+                  <div className="flex items-center">No.</div>
+                  <div className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none" onMouseDown={(e) => initResize("no", e)} />
+                </TableHead>
+              )}
+              {visibleCols.name && (
+              <TableHead className="relative" style={{ width: colWidth.name }}>
                 <div className="flex items-center gap-2">
                   <span>Name</span>
                   <Button
@@ -346,8 +405,11 @@ export default function Problems() {
                     <ArrowUpDown className="h-4 w-4" />
                   </Button>
                 </div>
+                <div className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none" onMouseDown={(e) => initResize("name", e)} />
               </TableHead>
-              <TableHead className="w-48">
+              )}
+              {visibleCols.topic && (
+              <TableHead className="relative" style={{ width: colWidth.topic }}>
                 <div className="flex items-center gap-2">
                   <span>Topic</span>
                   <Button
@@ -362,8 +424,11 @@ export default function Problems() {
                     <ArrowUpDown className="h-4 w-4" />
                   </Button>
                 </div>
+                <div className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none" onMouseDown={(e) => initResize("topic", e)} />
               </TableHead>
-              <TableHead className="w-52">
+              )}
+              {visibleCols.subTopic && (
+              <TableHead className="relative" style={{ width: colWidth.subTopic }}>
                 <div className="flex items-center gap-2">
                   <span>Sub Topic</span>
                   <Button
@@ -378,8 +443,11 @@ export default function Problems() {
                     <ArrowUpDown className="h-4 w-4" />
                   </Button>
                 </div>
+                <div className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none" onMouseDown={(e) => initResize("subTopic", e)} />
               </TableHead>
-              <TableHead className="w-32">
+              )}
+              {visibleCols.difficulty && (
+              <TableHead className="relative" style={{ width: colWidth.difficulty }}>
                 <div className="flex items-center gap-2">
                   <span>Difficulty</span>
                   <Button
@@ -394,8 +462,11 @@ export default function Problems() {
                     <ArrowUpDown className="h-4 w-4" />
                   </Button>
                 </div>
+                <div className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none" onMouseDown={(e) => initResize("difficulty", e)} />
               </TableHead>
-              <TableHead className="w-24">
+              )}
+              {visibleCols.tests && (
+              <TableHead className="relative" style={{ width: colWidth.tests }}>
                 <div className="flex items-center gap-2">
                   <span>Tests</span>
                   <Button
@@ -410,32 +481,38 @@ export default function Problems() {
                     <ArrowUpDown className="h-4 w-4" />
                   </Button>
                 </div>
+                <div className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none" onMouseDown={(e) => initResize("tests", e)} />
               </TableHead>
-              <TableHead className="w-32">Status</TableHead>
-              <TableHead className="w-28 text-right">Actions</TableHead>
+              )}
+              {visibleCols.status && (
+              <TableHead className="relative" style={{ width: colWidth.status }}>Status<div className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none" onMouseDown={(e) => initResize("status", e)} /></TableHead>
+              )}
+              {visibleCols.actions && (
+              <TableHead className="relative text-right" style={{ width: colWidth.actions }}>Actions<div className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none" onMouseDown={(e) => initResize("actions", e)} /></TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
             {paged.map((problem) => (
               <TableRow key={problem._id}>
-                <TableCell className="truncate">{(page - 1) * pageSize + 1 + paged.indexOf(problem)}</TableCell>
-                <TableCell className="font-medium truncate">{problem.name}</TableCell>
-                <TableCell className="truncate">{getTopicName(problem.topic_id)}</TableCell>
-                <TableCell className="truncate">{getSubTopicName(problem.sub_topic_id)}</TableCell>
-                <TableCell className="truncate">
+                {visibleCols.no && (<TableCell className="truncate" style={{ width: colWidth.no }}>{(page - 1) * pageSize + 1 + paged.indexOf(problem)}</TableCell>)}
+                {visibleCols.name && (<TableCell className="font-medium truncate" style={{ width: colWidth.name }}>{problem.name}</TableCell>)}
+                {visibleCols.topic && (<TableCell className="truncate" style={{ width: colWidth.topic }}>{getTopicName(problem.topic_id)}</TableCell>)}
+                {visibleCols.subTopic && (<TableCell className="truncate" style={{ width: colWidth.subTopic }}>{getSubTopicName(problem.sub_topic_id)}</TableCell>)}
+                {visibleCols.difficulty && (<TableCell className="truncate" style={{ width: colWidth.difficulty }}>
                   <div className="flex items-center gap-2">
                     <div className={`h-2 w-2 rounded-full ${getDifficultyColor(problem.difficulty)}`} />
                     <span>{problem.difficulty}/5</span>
                   </div>
-                </TableCell>
-                <TableCell className="truncate">{problem.number_of_tests} tests</TableCell>
-                <TableCell className="truncate">
+                </TableCell>)}
+                {visibleCols.tests && (<TableCell className="truncate" style={{ width: colWidth.tests }}>{problem.number_of_tests} tests</TableCell>)}
+                {visibleCols.status && (<TableCell className="truncate" style={{ width: colWidth.status }}>
                   <div className="flex gap-1">
                     {problem.is_public && <Badge variant="outline">Public</Badge>}
                     {problem.is_active && <Badge>Active</Badge>}
                   </div>
-                </TableCell>
-                <TableCell className="text-right truncate">
+                </TableCell>)}
+                {visibleCols.actions && (<TableCell className="text-right truncate" style={{ width: colWidth.actions }}>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -453,7 +530,7 @@ export default function Problems() {
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
-                </TableCell>
+                </TableCell>)}
               </TableRow>
             ))}
           </TableBody>
