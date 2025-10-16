@@ -327,11 +327,11 @@ export default function Problems() {
       </div>
 
       <div className="border rounded-lg">
-        <Table>
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
               <TableHead className="w-14">No.</TableHead>
-              <TableHead>
+              <TableHead className="w-64">
                 <div className="flex items-center gap-2">
                   <span>Name</span>
                   <Button
@@ -347,7 +347,7 @@ export default function Problems() {
                   </Button>
                 </div>
               </TableHead>
-              <TableHead>
+              <TableHead className="w-48">
                 <div className="flex items-center gap-2">
                   <span>Topic</span>
                   <Button
@@ -363,7 +363,7 @@ export default function Problems() {
                   </Button>
                 </div>
               </TableHead>
-              <TableHead>
+              <TableHead className="w-52">
                 <div className="flex items-center gap-2">
                   <span>Sub Topic</span>
                   <Button
@@ -379,7 +379,7 @@ export default function Problems() {
                   </Button>
                 </div>
               </TableHead>
-              <TableHead>
+              <TableHead className="w-32">
                 <div className="flex items-center gap-2">
                   <span>Difficulty</span>
                   <Button
@@ -395,7 +395,7 @@ export default function Problems() {
                   </Button>
                 </div>
               </TableHead>
-              <TableHead>
+              <TableHead className="w-24">
                 <div className="flex items-center gap-2">
                   <span>Tests</span>
                   <Button
@@ -411,31 +411,31 @@ export default function Problems() {
                   </Button>
                 </div>
               </TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead className="w-32">Status</TableHead>
+              <TableHead className="w-28 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {paged.map((problem) => (
               <TableRow key={problem._id}>
-                <TableCell>{(page - 1) * pageSize + 1 + paged.indexOf(problem)}</TableCell>
-                <TableCell className="font-medium">{problem.name}</TableCell>
-                <TableCell>{getTopicName(problem.topic_id)}</TableCell>
-                <TableCell>{getSubTopicName(problem.sub_topic_id)}</TableCell>
-                <TableCell>
+                <TableCell className="truncate">{(page - 1) * pageSize + 1 + paged.indexOf(problem)}</TableCell>
+                <TableCell className="font-medium truncate">{problem.name}</TableCell>
+                <TableCell className="truncate">{getTopicName(problem.topic_id)}</TableCell>
+                <TableCell className="truncate">{getSubTopicName(problem.sub_topic_id)}</TableCell>
+                <TableCell className="truncate">
                   <div className="flex items-center gap-2">
                     <div className={`h-2 w-2 rounded-full ${getDifficultyColor(problem.difficulty)}`} />
                     <span>{problem.difficulty}/5</span>
                   </div>
                 </TableCell>
-                <TableCell>{problem.number_of_tests} tests</TableCell>
-                <TableCell>
+                <TableCell className="truncate">{problem.number_of_tests} tests</TableCell>
+                <TableCell className="truncate">
                   <div className="flex gap-1">
                     {problem.is_public && <Badge variant="outline">Public</Badge>}
                     {problem.is_active && <Badge>Active</Badge>}
                   </div>
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-right truncate">
                   <Button
                     variant="ghost"
                     size="icon"
