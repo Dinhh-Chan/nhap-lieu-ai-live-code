@@ -43,6 +43,8 @@ export default function Problems() {
   const [topicFilter, setTopicFilter] = useState<string | undefined>(undefined);
   const [subTopicFilter, setSubTopicFilter] = useState<string | undefined>(undefined);
   const [difficultyFilter, setDifficultyFilter] = useState<string | undefined>(undefined);
+  const [selectedTopicId, setSelectedTopicId] = useState<string | undefined>(undefined);
+  const [selectedSubTopicId, setSelectedSubTopicId] = useState<string | undefined>(undefined);
   const [sortKey, setSortKey] = useState<
     | "name"
     | "topic"
@@ -163,8 +165,8 @@ export default function Problems() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const dto = {
-      topic_id: String(formData.get("topic_id") || ""),
-      sub_topic_id: String(formData.get("sub_topic_id") || ""),
+      topic_id: String(selectedTopicId || formData.get("topic_id") || ""),
+      sub_topic_id: String(selectedSubTopicId || formData.get("sub_topic_id") || ""),
       name: String(formData.get("name") || ""),
       description: String(formData.get("description") || ""),
       difficulty: Number(formData.get("difficulty") || 1),
@@ -247,9 +249,19 @@ export default function Problems() {
           </DropdownMenu>
         </div>
 
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(v) => {
+          setOpen(v);
+          if (!v) return;
+          if (editingProblem) {
+            setSelectedTopicId(editingProblem.topic_id);
+            setSelectedSubTopicId(editingProblem.sub_topic_id);
+          } else {
+            setSelectedTopicId(undefined);
+            setSelectedSubTopicId(undefined);
+          }
+        }}>
           <DialogTrigger asChild>
-            <Button onClick={() => setEditingProblem(null)}>
+            <Button onClick={() => { setEditingProblem(null); setSelectedTopicId(undefined); setSelectedSubTopicId(undefined); }}>
               <Plus className="h-4 w-4 mr-2" />
               Add Problem
             </Button>
@@ -262,7 +274,7 @@ export default function Problems() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="topic_id">Topic</Label>
-                  <Select name="topic_id" defaultValue={editingProblem?.topic_id}>
+                  <Select name="topic_id" value={selectedTopicId} onValueChange={(v) => { setSelectedTopicId(v); setSelectedSubTopicId(undefined); }}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select topic" />
                     </SelectTrigger>
@@ -277,16 +289,18 @@ export default function Problems() {
                 </div>
                 <div>
                   <Label htmlFor="sub_topic_id">Sub Topic</Label>
-                  <Select name="sub_topic_id" defaultValue={editingProblem?.sub_topic_id}>
+                  <Select name="sub_topic_id" value={selectedSubTopicId} onValueChange={(v) => setSelectedSubTopicId(v)} disabled={!selectedTopicId}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select sub topic" />
                     </SelectTrigger>
                     <SelectContent>
-                      {subTopics.map(subTopic => (
-                        <SelectItem key={subTopic._id} value={subTopic._id}>
-                          {subTopic.sub_topic_name}
-                        </SelectItem>
-                      ))}
+                      {subTopics
+                        .filter((st) => st.topic_id === selectedTopicId)
+                        .map((subTopic) => (
+                          <SelectItem key={subTopic._id} value={subTopic._id}>
+                            {subTopic.sub_topic_name}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
