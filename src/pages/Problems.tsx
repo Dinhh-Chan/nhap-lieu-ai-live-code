@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ArrowUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -42,6 +42,15 @@ export default function Problems() {
   const [topicFilter, setTopicFilter] = useState<string | undefined>(undefined);
   const [subTopicFilter, setSubTopicFilter] = useState<string | undefined>(undefined);
   const [difficultyFilter, setDifficultyFilter] = useState<string | undefined>(undefined);
+  const [sortKey, setSortKey] = useState<
+    | "name"
+    | "topic"
+    | "subTopic"
+    | "difficulty"
+    | "tests"
+    | undefined
+  >(undefined);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const queryClient = useQueryClient();
   const { data: problemsData, isLoading } = useQuery({ queryKey: ["problems"], queryFn: () => ProblemsApi.list() });
   const { data: topicsData } = useQuery({ queryKey: ["topics"], queryFn: () => TopicsApi.list() });
@@ -49,6 +58,8 @@ export default function Problems() {
   const problems = useMemo(() => (Array.isArray(problemsData) ? problemsData : []), [problemsData]);
   const topics = useMemo(() => (Array.isArray(topicsData) ? topicsData : []), [topicsData]);
   const subTopics = useMemo(() => (Array.isArray(subTopicsData) ? subTopicsData : []), [subTopicsData]);
+  const getTopicName = (topicId?: string) => topics.find((t: Topic) => t._id === topicId)?.topic_name || "—";
+  const getSubTopicName = (subTopicId?: string) => subTopics.find((st: SubTopic) => st._id === subTopicId)?.sub_topic_name || "—";
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
   const filtered = useMemo(() => {
@@ -63,9 +74,32 @@ export default function Problems() {
       return matchTopic && matchSubTopic && matchDifficulty && matchText;
     });
   }, [problems, search, topicFilter, subTopicFilter, difficultyFilter]);
-  const total = filtered.length;
+  const sorted = useMemo(() => {
+    if (!sortKey) return filtered;
+    const arr = [...filtered];
+    const compare = (a: any, b: any) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      switch (sortKey) {
+        case "name":
+          return dir * String(a.name || "").localeCompare(String(b.name || ""));
+        case "topic":
+          return dir * getTopicName(a.topic_id).localeCompare(getTopicName(b.topic_id));
+        case "subTopic":
+          return dir * getSubTopicName(a.sub_topic_id).localeCompare(getSubTopicName(b.sub_topic_id));
+        case "difficulty":
+          return dir * (Number(a.difficulty || 0) - Number(b.difficulty || 0));
+        case "tests":
+          return dir * (Number(a.number_of_tests || 0) - Number(b.number_of_tests || 0));
+        default:
+          return 0;
+      }
+    };
+    arr.sort(compare);
+    return arr;
+  }, [filtered, sortKey, sortDir]);
+  const total = sorted.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const paged = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize]);
+  const paged = useMemo(() => sorted.slice((page - 1) * pageSize, page * pageSize), [sorted, page, pageSize]);
   const startPage = useMemo(() => Math.floor((page - 1) / 10) * 10 + 1, [page]);
   const endPage = useMemo(() => Math.min(totalPages, startPage + 9), [totalPages, startPage]);
 
@@ -87,9 +121,6 @@ export default function Problems() {
     if (difficulty <= 3) return "bg-yellow-500";
     return "bg-red-500";
   };
-
-  const getTopicName = (topicId?: string) => topics.find((t: Topic) => t._id === topicId)?.topic_name || "—";
-  const getSubTopicName = (subTopicId?: string) => subTopics.find((st: SubTopic) => st._id === subTopicId)?.sub_topic_name || "—";
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -299,11 +330,87 @@ export default function Problems() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Topic</TableHead>
-              <TableHead>Sub Topic</TableHead>
-              <TableHead>Difficulty</TableHead>
-              <TableHead>Tests</TableHead>
+              <TableHead className="w-14">No.</TableHead>
+              <TableHead>
+                <div className="flex items-center gap-2">
+                  <span>Name</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setPage(1);
+                      setSortKey("name");
+                      setSortDir((d) => (sortKey === "name" && d === "asc" ? "desc" : "asc"));
+                    }}
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                  </Button>
+                </div>
+              </TableHead>
+              <TableHead>
+                <div className="flex items-center gap-2">
+                  <span>Topic</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setPage(1);
+                      setSortKey("topic");
+                      setSortDir((d) => (sortKey === "topic" && d === "asc" ? "desc" : "asc"));
+                    }}
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                  </Button>
+                </div>
+              </TableHead>
+              <TableHead>
+                <div className="flex items-center gap-2">
+                  <span>Sub Topic</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setPage(1);
+                      setSortKey("subTopic");
+                      setSortDir((d) => (sortKey === "subTopic" && d === "asc" ? "desc" : "asc"));
+                    }}
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                  </Button>
+                </div>
+              </TableHead>
+              <TableHead>
+                <div className="flex items-center gap-2">
+                  <span>Difficulty</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setPage(1);
+                      setSortKey("difficulty");
+                      setSortDir((d) => (sortKey === "difficulty" && d === "asc" ? "desc" : "asc"));
+                    }}
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                  </Button>
+                </div>
+              </TableHead>
+              <TableHead>
+                <div className="flex items-center gap-2">
+                  <span>Tests</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setPage(1);
+                      setSortKey("tests");
+                      setSortDir((d) => (sortKey === "tests" && d === "asc" ? "desc" : "asc"));
+                    }}
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                  </Button>
+                </div>
+              </TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -311,6 +418,7 @@ export default function Problems() {
           <TableBody>
             {paged.map((problem) => (
               <TableRow key={problem._id}>
+                <TableCell>{(page - 1) * pageSize + 1 + paged.indexOf(problem)}</TableCell>
                 <TableCell className="font-medium">{problem.name}</TableCell>
                 <TableCell>{getTopicName(problem.topic_id)}</TableCell>
                 <TableCell>{getSubTopicName(problem.sub_topic_id)}</TableCell>
