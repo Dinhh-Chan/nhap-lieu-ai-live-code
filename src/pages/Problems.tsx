@@ -48,6 +48,8 @@ export default function Problems() {
   const [rowEditId, setRowEditId] = useState<string | undefined>(undefined);
   const [rowTopicId, setRowTopicId] = useState<string | undefined>(undefined);
   const [rowSubTopicId, setRowSubTopicId] = useState<string | undefined>(undefined);
+
+  // auto-save on outside click removed to avoid premature saves
   const [sortKey, setSortKey] = useState<
     | "name"
     | "topic"
@@ -511,13 +513,20 @@ export default function Problems() {
           </TableHeader>
           <TableBody>
             {paged.map((problem) => (
-              <TableRow key={problem._id}>
+              <TableRow key={problem._id} data-row-id={problem._id}>
                 {visibleCols.no && (<TableCell className="truncate" style={{ width: colWidth.no }}>{(page - 1) * pageSize + 1 + paged.indexOf(problem)}</TableCell>)}
                 {visibleCols.name && (<TableCell className="font-medium truncate" style={{ width: colWidth.name }}>{problem.name}</TableCell>)}
                 {visibleCols.topic && (
                   <TableCell className="truncate" style={{ width: colWidth.topic }}>
                     {rowEditId === problem._id ? (
-                      <Select value={rowTopicId} onValueChange={(v) => { setRowTopicId(v); setRowSubTopicId(undefined); }}>
+                      <Select
+                        value={rowTopicId}
+                        onValueChange={(v) => {
+                          setRowTopicId(v);
+                          setRowSubTopicId(undefined);
+                          updateMutation.mutate({ id: problem._id, dto: { topic_id: v, sub_topic_id: null } });
+                        }}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Select topic" />
                         </SelectTrigger>
@@ -537,7 +546,15 @@ export default function Problems() {
                 {visibleCols.subTopic && (
                   <TableCell className="truncate" style={{ width: colWidth.subTopic }}>
                     {rowEditId === problem._id ? (
-                      <Select value={rowSubTopicId} onValueChange={(v) => setRowSubTopicId(v)} disabled={!rowTopicId}>
+                      <Select
+                        value={rowSubTopicId}
+                        onValueChange={(v) => {
+                          setRowSubTopicId(v);
+                          updateMutation.mutate({ id: problem._id, dto: { sub_topic_id: v } });
+                          setRowEditId(undefined);
+                        }}
+                        disabled={!rowTopicId}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Select sub topic" />
                         </SelectTrigger>
@@ -570,24 +587,6 @@ export default function Problems() {
                   </div>
                 </TableCell>)}
                 {visibleCols.actions && (<TableCell className="text-right truncate" style={{ width: colWidth.actions }}>
-                  {rowEditId === problem._id ? (
-                    <>
-                      <Button
-                        size="sm"
-                        className="mr-2"
-                        onClick={() => {
-                          updateMutation.mutate({ id: problem._id, dto: { topic_id: rowTopicId, sub_topic_id: rowSubTopicId || null } });
-                          setRowEditId(undefined);
-                        }}
-                        disabled={!rowTopicId}
-                      >
-                        Save
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => { setRowEditId(undefined); setRowTopicId(undefined); setRowSubTopicId(undefined); }}>
-                        Cancel
-                      </Button>
-                    </>
-                  ) : (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -598,7 +597,6 @@ export default function Problems() {
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  )}
                   <Button
                     variant="ghost"
                     size="icon"
