@@ -35,6 +35,8 @@ import { toast } from "sonner";
 export default function SubTopics() {
   const [open, setOpen] = useState(false);
   const [editingSubTopic, setEditingSubTopic] = useState<SubTopic | null>(null);
+  const [search, setSearch] = useState("");
+  const [topicFilter, setTopicFilter] = useState<string | undefined>(undefined);
   const queryClient = useQueryClient();
   const { data: subTopicsData, isLoading } = useQuery({ queryKey: ["sub-topics"], queryFn: () => SubTopicsApi.list() });
   const { data: topicsData } = useQuery({ queryKey: ["topics"], queryFn: () => TopicsApi.list() });
@@ -42,9 +44,19 @@ export default function SubTopics() {
   const topics = useMemo(() => (Array.isArray(topicsData) ? topicsData : []), [topicsData]);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
-  const total = subTopics.length;
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return subTopics.filter((st) => {
+      const matchTopic = topicFilter ? st.topic_id === topicFilter : true;
+      const matchText = q
+        ? [st.sub_topic_name, st.description, st.lo].filter(Boolean).some((v) => String(v).toLowerCase().includes(q))
+        : true;
+      return matchTopic && matchText;
+    });
+  }, [subTopics, search, topicFilter]);
+  const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const paged = useMemo(() => subTopics.slice((page - 1) * pageSize, page * pageSize), [subTopics, page, pageSize]);
+  const paged = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize]);
   const startPage = useMemo(() => Math.floor((page - 1) / 10) * 10 + 1, [page]);
   const endPage = useMemo(() => Math.min(totalPages, startPage + 9), [totalPages, startPage]);
 
@@ -88,6 +100,25 @@ export default function SubTopics() {
           <p className="text-muted-foreground">Manage sub topics under main topics</p>
         </div>
         
+        <div className="flex items-center gap-2">
+          <Select value={topicFilter} onValueChange={(v) => { setPage(1); setTopicFilter(v); }}>
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="Filter by Topic" />
+            </SelectTrigger>
+            <SelectContent>
+              {topics.map((t) => (
+                <SelectItem key={t._id} value={t._id}>{t.topic_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            placeholder="Search sub topic"
+            value={search}
+            onChange={(e) => { setPage(1); setSearch(e.target.value); }}
+            className="w-64"
+          />
+        </div>
+
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => setEditingSubTopic(null)}>

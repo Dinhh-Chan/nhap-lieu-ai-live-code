@@ -38,6 +38,10 @@ import { toast } from "sonner";
 export default function Problems() {
   const [open, setOpen] = useState(false);
   const [editingProblem, setEditingProblem] = useState<Problem | null>(null);
+  const [search, setSearch] = useState("");
+  const [topicFilter, setTopicFilter] = useState<string | undefined>(undefined);
+  const [subTopicFilter, setSubTopicFilter] = useState<string | undefined>(undefined);
+  const [difficultyFilter, setDifficultyFilter] = useState<string | undefined>(undefined);
   const queryClient = useQueryClient();
   const { data: problemsData, isLoading } = useQuery({ queryKey: ["problems"], queryFn: () => ProblemsApi.list() });
   const { data: topicsData } = useQuery({ queryKey: ["topics"], queryFn: () => TopicsApi.list() });
@@ -47,9 +51,21 @@ export default function Problems() {
   const subTopics = useMemo(() => (Array.isArray(subTopicsData) ? subTopicsData : []), [subTopicsData]);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
-  const total = problems.length;
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return problems.filter((p) => {
+      const matchTopic = topicFilter ? p.topic_id === topicFilter : true;
+      const matchSubTopic = subTopicFilter ? p.sub_topic_id === subTopicFilter : true;
+      const matchDifficulty = difficultyFilter ? String(p.difficulty) === difficultyFilter : true;
+      const matchText = q
+        ? [p.name, p.description].filter(Boolean).some((v) => String(v).toLowerCase().includes(q))
+        : true;
+      return matchTopic && matchSubTopic && matchDifficulty && matchText;
+    });
+  }, [problems, search, topicFilter, subTopicFilter, difficultyFilter]);
+  const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const paged = useMemo(() => problems.slice((page - 1) * pageSize, page * pageSize), [problems, page, pageSize]);
+  const paged = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize]);
   const startPage = useMemo(() => Math.floor((page - 1) / 10) * 10 + 1, [page]);
   const endPage = useMemo(() => Math.min(totalPages, startPage + 9), [totalPages, startPage]);
 
@@ -71,6 +87,9 @@ export default function Problems() {
     if (difficulty <= 3) return "bg-yellow-500";
     return "bg-red-500";
   };
+
+  const getTopicName = (topicId?: string) => topics.find((t: Topic) => t._id === topicId)?.topic_name || "—";
+  const getSubTopicName = (subTopicId?: string) => subTopics.find((st: SubTopic) => st._id === subTopicId)?.sub_topic_name || "—";
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -102,6 +121,48 @@ export default function Problems() {
           <p className="text-muted-foreground">Manage coding problems</p>
         </div>
         
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={topicFilter} onValueChange={(v) => { setPage(1); setTopicFilter(v); }}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Filter by Topic" />
+            </SelectTrigger>
+            <SelectContent>
+              {topics.map((t) => (
+                <SelectItem key={t._id} value={t._id}>{t.topic_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={subTopicFilter} onValueChange={(v) => { setPage(1); setSubTopicFilter(v); }}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Filter by SubTopic" />
+            </SelectTrigger>
+            <SelectContent>
+              {subTopics.map((st) => (
+                <SelectItem key={st._id} value={st._id}>{st.sub_topic_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={difficultyFilter} onValueChange={(v) => { setPage(1); setDifficultyFilter(v); }}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Difficulty" />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <SelectItem key={i+1} value={String(i + 1)}>{i + 1}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            placeholder="Search problem"
+            value={search}
+            onChange={(e) => { setPage(1); setSearch(e.target.value); }}
+            className="w-64"
+          />
+          <Button variant="outline" onClick={() => { setSearch(""); setTopicFilter(undefined); setSubTopicFilter(undefined); setDifficultyFilter(undefined); setPage(1); }}>
+            Reset
+          </Button>
+        </div>
+
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => setEditingProblem(null)}>
@@ -239,6 +300,8 @@ export default function Problems() {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>Topic</TableHead>
+              <TableHead>Sub Topic</TableHead>
               <TableHead>Difficulty</TableHead>
               <TableHead>Tests</TableHead>
               <TableHead>Status</TableHead>
@@ -249,6 +312,8 @@ export default function Problems() {
             {paged.map((problem) => (
               <TableRow key={problem._id}>
                 <TableCell className="font-medium">{problem.name}</TableCell>
+                <TableCell>{getTopicName(problem.topic_id)}</TableCell>
+                <TableCell>{getSubTopicName(problem.sub_topic_id)}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <div className={`h-2 w-2 rounded-full ${getDifficultyColor(problem.difficulty)}`} />

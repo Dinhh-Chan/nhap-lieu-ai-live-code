@@ -27,6 +27,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 export default function Topics() {
   const [open, setOpen] = useState(false);
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
+  const [search, setSearch] = useState("");
 
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
@@ -34,10 +35,18 @@ export default function Topics() {
     queryFn: () => TopicsApi.list(),
   });
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(10);  const topics = useMemo(() => (Array.isArray(data) ? data : []), [data]);
-  const total = topics.length;
+  const [pageSize] = useState(10);
+  const topics = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return topics;
+    return topics.filter((t) =>
+      [t.topic_name, t.description, t.lo].filter(Boolean).some((v) => String(v).toLowerCase().includes(q))
+    );
+  }, [topics, search]);
+  const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const paged = useMemo(() => topics.slice((page - 1) * pageSize, page * pageSize), [topics, page, pageSize]);
+  const paged = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize]);
   const startPage = useMemo(() => Math.floor((page - 1) / 10) * 10 + 1, [page]);
   const endPage = useMemo(() => Math.min(totalPages, startPage + 9), [totalPages, startPage]);
 
@@ -99,7 +108,15 @@ export default function Topics() {
           <h1 className="text-3xl font-bold">Topics</h1>
           <p className="text-muted-foreground">Manage learning topics</p>
         </div>
-        
+        <div className="flex items-center gap-2">
+          <Input
+            placeholder="Search by name or description"
+            value={search}
+            onChange={(e) => { setPage(1); setSearch(e.target.value); }}
+            className="w-72"
+          />
+        </div>
+
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => setEditingTopic(null)}>
