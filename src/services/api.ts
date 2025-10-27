@@ -38,6 +38,13 @@ export const createApiClient = (getToken?: () => string | null): AxiosInstance =
 const api = createApiClient();
 export default api;
 
+// Client có auth - cần import useAuth từ component
+export const createAuthenticatedApiClient = () => {
+  // Lấy token từ localStorage trực tiếp vì không thể sử dụng hook ở đây
+  const getToken = () => localStorage.getItem("accessToken");
+  return createApiClient(getToken);
+};
+
 export type ApiError = { status?: number; message: string; error?: unknown };
 
 export const Api = {

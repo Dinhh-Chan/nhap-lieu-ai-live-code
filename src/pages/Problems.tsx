@@ -29,7 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ProblemsApi, type Problem } from "@/services/problems";
+import { ProblemsApi, type Problem, type ProblemListParams } from "@/services/problems";
 import { TopicsApi, type Topic } from "@/services/topics";
 import { SubTopicsApi, type SubTopic } from "@/services/sub-topics";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
@@ -59,15 +59,48 @@ export default function Problems() {
     | undefined
   >(undefined);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
   const queryClient = useQueryClient();
-  const { data: problemsData, isLoading } = useQuery({ queryKey: ["problems"], queryFn: () => ProblemsApi.list() });
+  const { data: problemsData, isLoading, error } = useQuery({ 
+    queryKey: ["problems", page, pageSize, search, topicFilter, subTopicFilter, difficultyFilter, sortKey, sortDir], 
+    queryFn: () => {
+      const params: ProblemListParams = {
+        page,
+        limit: pageSize
+      };
+      
+      if (search) params.search = search;
+      if (topicFilter) params.topic_id = topicFilter;
+      if (subTopicFilter) params.sub_topic_id = subTopicFilter;
+      if (difficultyFilter) params.difficulty = Number(difficultyFilter);
+      if (sortKey) {
+        // Chuyển đổi sortKey từ UI sang tên trường trong API
+        let apiSortField: string = sortKey;
+        if (sortKey === "topic") apiSortField = "topic.topic_name";
+        if (sortKey === "subTopic") apiSortField = "sub_topic.sub_topic_name";
+        if (sortKey === "tests") apiSortField = "number_of_tests";
+        
+        params.sort = apiSortField;
+        params.order = sortDir;
+      }
+      
+      return ProblemsApi.list(page, pageSize, params);
+    }
+  });
   const { data: topicsData } = useQuery({ queryKey: ["topics"], queryFn: () => TopicsApi.list() });
   const { data: subTopicsData } = useQuery({ queryKey: ["sub-topics"], queryFn: () => SubTopicsApi.list() });
-  const problems = useMemo(() => (Array.isArray(problemsData) ? problemsData : []), [problemsData]);
+  const problems = useMemo(() => (problemsData?.data?.result ? problemsData.data.result : []), [problemsData]);
   const topics = useMemo(() => (Array.isArray(topicsData) ? topicsData : []), [topicsData]);
   const subTopics = useMemo(() => (Array.isArray(subTopicsData) ? subTopicsData : []), [subTopicsData]);
-  const getTopicName = (topicId?: string) => topics.find((t: Topic) => t._id === topicId)?.topic_name || "—";
-  const getSubTopicName = (subTopicId?: string) => subTopics.find((st: SubTopic) => st._id === subTopicId)?.sub_topic_name || "—";
+  const getTopicName = (topicId?: string, problem?: Problem) => {
+    if (problem?.topic?.topic_name) return problem.topic.topic_name;
+    return topics.find((t: Topic) => t._id === topicId)?.topic_name || "—";
+  };
+  const getSubTopicName = (subTopicId?: string, problem?: Problem) => {
+    if (problem?.sub_topic?.sub_topic_name) return problem.sub_topic.sub_topic_name;
+    return subTopics.find((st: SubTopic) => st._id === subTopicId)?.sub_topic_name || "—";
+  };
   const [visibleCols, setVisibleCols] = useState({
     no: true,
     name: true,
@@ -104,46 +137,10 @@ export default function Problems() {
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
   };
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(10);
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return problems.filter((p) => {
-      const matchTopic = topicFilter ? p.topic_id === topicFilter : true;
-      const matchSubTopic = subTopicFilter ? p.sub_topic_id === subTopicFilter : true;
-      const matchDifficulty = difficultyFilter ? String(p.difficulty) === difficultyFilter : true;
-      const matchText = q
-        ? [p.name, p.description].filter(Boolean).some((v) => String(v).toLowerCase().includes(q))
-        : true;
-      return matchTopic && matchSubTopic && matchDifficulty && matchText;
-    });
-  }, [problems, search, topicFilter, subTopicFilter, difficultyFilter]);
-  const sorted = useMemo(() => {
-    if (!sortKey) return filtered;
-    const arr = [...filtered];
-    const compare = (a: any, b: any) => {
-      const dir = sortDir === "asc" ? 1 : -1;
-      switch (sortKey) {
-        case "name":
-          return dir * String(a.name || "").localeCompare(String(b.name || ""));
-        case "topic":
-          return dir * getTopicName(a.topic_id).localeCompare(getTopicName(b.topic_id));
-        case "subTopic":
-          return dir * getSubTopicName(a.sub_topic_id).localeCompare(getSubTopicName(b.sub_topic_id));
-        case "difficulty":
-          return dir * (Number(a.difficulty || 0) - Number(b.difficulty || 0));
-        case "tests":
-          return dir * (Number(a.number_of_tests || 0) - Number(b.number_of_tests || 0));
-        default:
-          return 0;
-      }
-    };
-    arr.sort(compare);
-    return arr;
-  }, [filtered, sortKey, sortDir]);
-  const total = sorted.length;
+  // Dữ liệu đã được lọc và sắp xếp từ server
+  const paged = useMemo(() => Array.isArray(problems) ? problems : [], [problems]);
+  const total = problemsData?.data?.total || 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const paged = useMemo(() => sorted.slice((page - 1) * pageSize, page * pageSize), [sorted, page, pageSize]);
   const startPage = useMemo(() => Math.floor((page - 1) / 10) * 10 + 1, [page]);
   const endPage = useMemo(() => Math.min(totalPages, startPage + 9), [totalPages, startPage]);
 
@@ -302,10 +299,10 @@ export default function Problems() {
                       {subTopics
                         .filter((st) => st.topic_id === selectedTopicId)
                         .map((subTopic) => (
-                          <SelectItem key={subTopic._id} value={subTopic._id}>
-                            {subTopic.sub_topic_name}
-                          </SelectItem>
-                        ))}
+                        <SelectItem key={subTopic._id} value={subTopic._id}>
+                          {subTopic.sub_topic_name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -398,16 +395,26 @@ export default function Problems() {
         </Dialog>
       </div>
 
-      <div className="border rounded-lg">
-        <Table className="table-fixed">
-          <TableHeader>
-            <TableRow>
-              {visibleCols.no && (
-                <TableHead className="relative" style={{ width: colWidth.no }}>
-                  <div className="flex items-center">No.</div>
-                  <div className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none" onMouseDown={(e) => initResize("no", e)} />
-                </TableHead>
-              )}
+      {error ? (
+        <div className="border rounded-lg p-8 text-center">
+          <div className="text-red-500 mb-4">
+            Đã xảy ra lỗi khi tải dữ liệu. Vui lòng thử lại hoặc sử dụng bộ lọc để giảm số lượng kết quả.
+          </div>
+          <Button onClick={() => queryClient.invalidateQueries({ queryKey: ["problems"] })}>
+            Thử lại
+          </Button>
+        </div>
+      ) : (
+        <div className="border rounded-lg">
+          <Table className="table-fixed">
+            <TableHeader>
+              <TableRow>
+                {visibleCols.no && (
+                  <TableHead className="relative" style={{ width: colWidth.no }}>
+                    <div className="flex items-center">No.</div>
+                    <div className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none" onMouseDown={(e) => initResize("no", e)} />
+                  </TableHead>
+                )}
               {visibleCols.name && (
               <TableHead className="relative" style={{ width: colWidth.name }}>
                 <div className="flex items-center gap-2">
@@ -538,7 +545,7 @@ export default function Problems() {
                       </Select>
                     ) : (
                       <button className="underline underline-offset-2" onClick={() => { setRowEditId(problem._id); setRowTopicId(problem.topic_id); setRowSubTopicId(problem.sub_topic_id); }}>
-                        {getTopicName(problem.topic_id)}
+                        {getTopicName(problem.topic_id, problem)}
                       </button>
                     )}
                   </TableCell>
@@ -568,7 +575,7 @@ export default function Problems() {
                       </Select>
                     ) : (
                       <button className="underline underline-offset-2" onClick={() => { setRowEditId(problem._id); setRowTopicId(problem.topic_id); setRowSubTopicId(problem.sub_topic_id); }}>
-                        {getSubTopicName(problem.sub_topic_id)}
+                        {getSubTopicName(problem.sub_topic_id, problem)}
                       </button>
                     )}
                   </TableCell>
@@ -610,28 +617,31 @@ export default function Problems() {
           </TableBody>
         </Table>
       </div>
-      <div className="mt-4">
-        <Pagination>
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); setPage((p) => Math.max(1, p - 1)); }} />
-            </PaginationItem>
-            {Array.from({ length: endPage - startPage + 1 }).map((_, i) => {
-              const p = startPage + i;
-              return (
-                <PaginationItem key={p}>
-                  <PaginationLink href="#" isActive={page === p} onClick={(e) => { e.preventDefault(); setPage(p); }}>
-                    {p}
-                  </PaginationLink>
-                </PaginationItem>
-              );
-            })}
-            <PaginationItem>
-              <PaginationNext href="#" onClick={(e) => { e.preventDefault(); setPage((p) => Math.min(totalPages, p + 1)); }} />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      </div>
+      )}
+      {!error && (
+        <div className="mt-4">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); setPage((p) => Math.max(1, p - 1)); }} />
+              </PaginationItem>
+              {Array.from({ length: endPage - startPage + 1 }).map((_, i) => {
+                const p = startPage + i;
+                return (
+                  <PaginationItem key={p}>
+                    <PaginationLink href="#" isActive={page === p} onClick={(e) => { e.preventDefault(); setPage(p); }}>
+                      {p}
+                    </PaginationLink>
+                  </PaginationItem>
+                );
+              })}
+              <PaginationItem>
+                <PaginationNext href="#" onClick={(e) => { e.preventDefault(); setPage((p) => Math.min(totalPages, p + 1)); }} />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
     </div>
   );
 }

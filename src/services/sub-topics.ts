@@ -1,4 +1,4 @@
-import { Api } from "@/services/api";
+import { Api, createAuthenticatedApiClient } from "@/services/api";
 
 export type SubTopic = {
   _id: string;
@@ -16,16 +16,31 @@ export type UpdateSubTopicDto = Partial<CreateSubTopicDto>;
 
 const basePath = "/sub-topics";
 
+// Tạo authenticated client cho sub-topics API
+const authenticatedApi = createAuthenticatedApiClient();
+
 export const SubTopicsApi = {
   list: async (): Promise<SubTopic[]> => {
-    const res = await Api.get<any>(`${basePath}/many`);
-    const list = Array.isArray(res) ? res : res?.items || res?.data || res?.records || [];
+    const res = await authenticatedApi.get<any>(`${basePath}/many`);
+    const list = Array.isArray(res.data) ? res.data : res.data?.items || res.data?.data || res.data?.records || [];
     return list as SubTopic[];
   },
-  getById: async (id: string): Promise<SubTopic> => Api.get<SubTopic>(`${basePath}/${id}`),
-  create: async (dto: CreateSubTopicDto): Promise<SubTopic> => Api.post<SubTopic>(basePath, dto),
-  updateById: async (id: string, dto: UpdateSubTopicDto): Promise<SubTopic> => Api.put<SubTopic>(`${basePath}/${id}`, dto),
-  deleteById: async (id: string): Promise<SubTopic> => Api.delete<SubTopic>(`${basePath}/${id}`),
+  getById: async (id: string): Promise<SubTopic> => {
+    const res = await authenticatedApi.get<SubTopic>(`${basePath}/${id}`);
+    return res.data;
+  },
+  create: async (dto: CreateSubTopicDto): Promise<SubTopic> => {
+    const res = await authenticatedApi.post<SubTopic>(basePath, dto);
+    return res.data;
+  },
+  updateById: async (id: string, dto: UpdateSubTopicDto): Promise<SubTopic> => {
+    const res = await authenticatedApi.put<SubTopic>(`${basePath}/${id}`, dto);
+    return res.data;
+  },
+  deleteById: async (id: string): Promise<SubTopic> => {
+    const res = await authenticatedApi.delete<SubTopic>(`${basePath}/${id}`);
+    return res.data;
+  },
 };
 
 

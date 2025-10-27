@@ -1,4 +1,4 @@
-import api, { Api } from "@/services/api";
+import api, { Api, createAuthenticatedApiClient } from "@/services/api";
 
 export type Topic = {
   _id: string;
@@ -15,6 +15,9 @@ export type UpdateTopicDto = Partial<CreateTopicDto>;
 
 const basePath = "/topics";
 
+// Tạo authenticated client cho topics API
+const authenticatedApi = createAuthenticatedApiClient();
+
 export type GetTopicsManyQuery = {
   // select?: string; // ví dụ: "topic_name,description,order_index"
   // sort?: string; // ví dụ: "-createdAt"
@@ -25,16 +28,28 @@ export type GetTopicsManyQuery = {
 
 export const TopicsApi = {
   list: async (query?: GetTopicsManyQuery): Promise<Topic[]> => {
-    const res = await Api.get<any>(`${basePath}/many`);
-    const list = Array.isArray(res)
-      ? res
-      : res?.items || res?.data || res?.records || [];
+    const res = await authenticatedApi.get<any>(`${basePath}/many`);
+    const list = Array.isArray(res.data)
+      ? res.data
+      : res.data?.items || res.data?.data || res.data?.records || [];
     return list as Topic[];
   },
-  getById: async (id: string): Promise<Topic> => Api.get<Topic>(`${basePath}/${id}`),
-  create: async (dto: CreateTopicDto): Promise<Topic> => Api.post<Topic>(basePath, dto),
-  updateById: async (id: string, dto: UpdateTopicDto): Promise<Topic> => Api.put<Topic>(`${basePath}/${id}`, dto),
-  deleteById: async (id: string): Promise<Topic> => Api.delete<Topic>(`${basePath}/${id}`),
+  getById: async (id: string): Promise<Topic> => {
+    const res = await authenticatedApi.get<Topic>(`${basePath}/${id}`);
+    return res.data;
+  },
+  create: async (dto: CreateTopicDto): Promise<Topic> => {
+    const res = await authenticatedApi.post<Topic>(basePath, dto);
+    return res.data;
+  },
+  updateById: async (id: string, dto: UpdateTopicDto): Promise<Topic> => {
+    const res = await authenticatedApi.put<Topic>(`${basePath}/${id}`, dto);
+    return res.data;
+  },
+  deleteById: async (id: string): Promise<Topic> => {
+    const res = await authenticatedApi.delete<Topic>(`${basePath}/${id}`);
+    return res.data;
+  },
 };
 
 
