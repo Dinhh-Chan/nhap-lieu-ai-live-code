@@ -16,6 +16,38 @@ export type UserStatistics = {
   language_stats: {
     [key: string]: number;
   };
+  difficulty_stats: {
+    easy: {
+      solved: number;
+      total: number;
+    };
+    medium: {
+      solved: number;
+      total: number;
+    };
+    hard: {
+      solved: number;
+      total: number;
+    };
+  };
+  activity_data: {
+    date: string;
+    submissions_count: number;
+  }[];
+  total_active_days: number;
+  max_streak: number;
+  current_streak: number;
+  recent_submissions: {
+    problem_name: string;
+    submitted_at: string;
+    status: string;
+    language: string;
+  }[];
+  progress_stats: {
+    solved: number;
+    total: number;
+    attempting: number;
+  };
 };
 
 export type UserStatisticsResponse = {

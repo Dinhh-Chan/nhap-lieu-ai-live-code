@@ -135,7 +135,7 @@ export default function StudentSubmissions() {
     return (
       <div className="p-8">
         <div className="flex items-center gap-4 mb-6">
-          <Button variant="outline" onClick={() => navigate("/users")}>
+          <Button variant="outline" onClick={() => navigate(`/users/${id}`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Quay lại
           </Button>
@@ -151,14 +151,14 @@ export default function StudentSubmissions() {
     return (
       <div className="p-8">
         <div className="flex items-center gap-4 mb-6">
-          <Button variant="outline" onClick={() => navigate("/users")}>
+          <Button variant="outline" onClick={() => navigate(`/users/${id}`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Quay lại
           </Button>
         </div>
         <div className="text-center py-8">
           <div className="text-red-500 mb-4">Không thể tải bài nộp</div>
-          <Button onClick={() => navigate("/users")}>Quay lại danh sách</Button>
+            <Button onClick={() => navigate(`/users/${id}`)}>Quay lại profile</Button>
         </div>
       </div>
     );
@@ -169,7 +169,7 @@ export default function StudentSubmissions() {
   return (
     <div className="p-8">
       <div className="flex items-center gap-4 mb-6">
-        <Button variant="outline" onClick={() => navigate("/users")}>
+        <Button variant="outline" onClick={() => navigate(`/users/${id}`)}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Quay lại
         </Button>
