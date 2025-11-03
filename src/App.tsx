@@ -12,6 +12,10 @@ import TestCases from "./pages/TestCases";
 import Users from "./pages/Users";
 import UserDetail from "./pages/UserDetail";
 import StudentSubmissions from "./pages/StudentSubmissions";
+import Classes from "./pages/Classes";
+import ClassDetail from "./pages/ClassDetail";
+import Contests from "./pages/Contests";
+import ContestDetail from "./pages/ContestDetail";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -38,6 +42,10 @@ const App = () => (
                 <Route path="/users" element={<Users />} />
                 <Route path="/users/:id/submissions" element={<StudentSubmissions />} />
                 <Route path="/users/:id" element={<UserDetail />} />
+                <Route path="/classes" element={<Classes />} />
+                <Route path="/classes/:id" element={<ClassDetail />} />
+                <Route path="/contests" element={<Contests />} />
+                <Route path="/contests/:id" element={<ContestDetail />} />
               </Route>
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

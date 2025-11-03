@@ -1,4 +1,4 @@
-import { Home, BookOpen, List, Code, TestTube, LogOut, User, Users } from "lucide-react";
+import { Home, BookOpen, List, Code, TestTube, LogOut, User, Users, Trophy, GraduationCap } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -22,6 +22,8 @@ const items = [
   { title: "Problems", url: "/problems", icon: Code },
   { title: "Test Cases", url: "/test-cases", icon: TestTube },
   { title: "Users", url: "/users", icon: Users },
+  { title: "Contests", url: "/contests", icon: Trophy },
+  { title: "Classes", url: "/classes", icon: GraduationCap },
 ];
 
 export function AppSidebar() {

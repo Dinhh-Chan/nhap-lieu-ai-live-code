@@ -49,6 +49,37 @@ export const UsersApi = {
       throw error;
     }
   },
+  searchByUsername: async (q: string, params: { exact?: boolean; limit?: number; skip?: number; select?: string; sort?: string } = {}) => {
+    const res = await authenticatedApi.get(`${basePath}/search-username`, {
+      params: {
+        q,
+        exact: params.exact ? "true" : undefined,
+        limit: params.limit,
+        skip: params.skip,
+        select: params.select,
+        sort: params.sort,
+      },
+    });
+    return (res.data?.data ?? []) as any[];
+  },
+  searchByUsernamePage: async (
+    q: string,
+    page: number,
+    limit: number,
+    params: { exact?: boolean; select?: string; sort?: string } = {}
+  ) => {
+    const res = await authenticatedApi.get(`${basePath}/search-username/page`, {
+      params: {
+        q,
+        exact: params.exact ? "true" : undefined,
+        page,
+        limit,
+        select: params.select,
+        sort: params.sort,
+      },
+    });
+    return (res.data?.data ?? { page, limit, total: 0, result: [] }) as { page: number; limit: number; total: number; result: any[] };
+  },
   getSystemStatistics: async (): Promise<SystemStatisticsResponse> => {
     try {
       const res = await authenticatedApi.get<SystemStatisticsResponse>(`${basePath}/system-statistics`);
