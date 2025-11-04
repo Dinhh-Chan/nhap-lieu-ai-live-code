@@ -39,6 +39,7 @@ export default function ContestDetail() {
   const [openAddUser, setOpenAddUser] = useState(false);
   const [openAddProblem, setOpenAddProblem] = useState(false);
   
+  const [searchUser, setSearchUser] = useState("");
   const [searchProblem, setSearchProblem] = useState("");
   const [userPage, setUserPage] = useState(1);
   const [userLimit, setUserLimit] = useState(7);
@@ -51,19 +52,26 @@ export default function ContestDetail() {
   const [selectedProblemIds, setSelectedProblemIds] = useState<string[]>([]);
 
   const { data: usersPage, isLoading: usersLoading } = useQuery({
-    queryKey: ["contest-add-users", userPage, userLimit, roleFilter, genderFilter, openAddUser],
-    queryFn: () => {
+    queryKey: ["contest-add-users", userPage, userLimit, searchUser, roleFilter, genderFilter, openAddUser],
+    queryFn: async () => {
+      if (searchUser.trim()) {
+        const res = await UsersApi.searchByUsernamePage(searchUser, userPage, userLimit, { sort: "username" });
+        return { data: res };
+      }
       const params: any = {};
-      
       params.select = "id,username,fullname";
       params.sort = "username";
-      return UsersApi.list(userPage, userLimit, params);
+      return await UsersApi.list(userPage, userLimit, params);
     },
     enabled: openAddUser,
   });
 
-  const userResults: any[] = usersPage?.data?.result ?? [];
-  const userTotal: number = usersPage?.data?.total ?? 0;
+  const userResults: any[] = searchUser.trim() 
+    ? ((usersPage?.data as any)?.result ?? [])
+    : (usersPage?.data?.result ?? []);
+  const userTotal: number = searchUser.trim()
+    ? ((usersPage?.data as any)?.total ?? 0)
+    : (usersPage?.data?.total ?? 0);
   const hasNextUsers = userPage * userLimit < userTotal;
 
   const { mutate: addUsersToContest, isPending: addingUsers } = useMutation({
@@ -176,7 +184,7 @@ export default function ContestDetail() {
             <Badge variant={contest.is_active ? "default" : "secondary"}>{contest.is_active ? "Đang diễn ra" : "Không hoạt động"}</Badge>
             </div>
             <div className="flex items-center gap-2">
-              <Dialog open={openAddUser} onOpenChange={(v)=>{ setOpenAddUser(v); if(!v){ setUserPage(1); setRoleFilter(undefined); setGenderFilter(undefined);} }}>
+              <Dialog open={openAddUser} onOpenChange={(v)=>{ setOpenAddUser(v); if(!v){ setUserPage(1); setSearchUser(""); setRoleFilter(undefined); setGenderFilter(undefined);} }}>
                 <DialogTrigger asChild>
                   <Button size="sm" variant="outline">Thêm người</Button>
                 </DialogTrigger>
@@ -185,8 +193,8 @@ export default function ContestDetail() {
                     <DialogTitle>Thêm người vào contest</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      <div />
+                    <Input placeholder="Tìm theo username..." value={searchUser} onChange={(e)=> { setUserPage(1); setSearchUser(e.target.value); }} />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       <Select value={roleFilter ?? "__all__"} onValueChange={(v)=>{ setUserPage(1); setRoleFilter(v === "__all__" ? undefined : v); }}>
                         <SelectTrigger><SelectValue placeholder="Vai trò" /></SelectTrigger>
                         <SelectContent>
