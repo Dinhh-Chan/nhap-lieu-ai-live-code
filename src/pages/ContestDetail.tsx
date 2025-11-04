@@ -42,9 +42,7 @@ export default function ContestDetail() {
   const [searchUser, setSearchUser] = useState("");
   const [searchProblem, setSearchProblem] = useState("");
   const [userPage, setUserPage] = useState(1);
-  const [userLimit, setUserLimit] = useState(7);
-  const [roleFilter, setRoleFilter] = useState<string | undefined>(undefined);
-  const [genderFilter, setGenderFilter] = useState<string | undefined>(undefined);
+  const [userLimit] = useState(7);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [problemPage, setProblemPage] = useState(1);
   const [problemLimit, setProblemLimit] = useState(7);
@@ -52,27 +50,14 @@ export default function ContestDetail() {
   const [selectedProblemIds, setSelectedProblemIds] = useState<string[]>([]);
 
   const { data: usersPage, isLoading: usersLoading } = useQuery({
-    queryKey: ["contest-add-users", userPage, userLimit, searchUser, roleFilter, genderFilter, openAddUser],
-    queryFn: async () => {
-      if (searchUser.trim()) {
-        const res = await UsersApi.searchByUsernamePage(searchUser, userPage, userLimit, { sort: "username" });
-        return { data: res };
-      }
-      const params: any = {};
-      params.select = "id,username,fullname";
-      params.sort = "username";
-      return await UsersApi.list(userPage, userLimit, params);
-    },
+    queryKey: ["contest-add-users", userPage, userLimit, searchUser, openAddUser],
+    queryFn: () => UsersApi.searchByUsernamePage(searchUser, userPage, userLimit, { sort: "username" }),
     enabled: openAddUser,
   });
 
-  const userResults: any[] = searchUser.trim() 
-    ? ((usersPage?.data as any)?.result ?? [])
-    : (usersPage?.data?.result ?? []);
-  const userTotal: number = searchUser.trim()
-    ? ((usersPage?.data as any)?.total ?? 0)
-    : (usersPage?.data?.total ?? 0);
-  const hasNextUsers = userPage * userLimit < userTotal;
+  const userResults: any[] = usersPage?.result ?? [];
+  const userTotal: number = usersPage?.total ?? 0;
+  const hasNextUsers = (usersPage?.page ?? userPage) * (usersPage?.limit ?? userLimit) < userTotal;
 
   const { mutate: addUsersToContest, isPending: addingUsers } = useMutation({
     mutationFn: (userIds: string[]) => ContestUsersApi.addMultiple(id!, userIds),
@@ -184,7 +169,7 @@ export default function ContestDetail() {
             <Badge variant={contest.is_active ? "default" : "secondary"}>{contest.is_active ? "Đang diễn ra" : "Không hoạt động"}</Badge>
             </div>
             <div className="flex items-center gap-2">
-              <Dialog open={openAddUser} onOpenChange={(v)=>{ setOpenAddUser(v); if(!v){ setUserPage(1); setSearchUser(""); setRoleFilter(undefined); setGenderFilter(undefined);} }}>
+              <Dialog open={openAddUser} onOpenChange={(v)=>{ setOpenAddUser(v); if(!v){ setUserPage(1); setSearchUser(""); setSelectedUserIds([]);} }}>
                 <DialogTrigger asChild>
                   <Button size="sm" variant="outline">Thêm người</Button>
                 </DialogTrigger>
@@ -194,27 +179,6 @@ export default function ContestDetail() {
                   </DialogHeader>
                   <div className="space-y-4">
                     <Input placeholder="Tìm theo username..." value={searchUser} onChange={(e)=> { setUserPage(1); setSearchUser(e.target.value); }} />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <Select value={roleFilter ?? "__all__"} onValueChange={(v)=>{ setUserPage(1); setRoleFilter(v === "__all__" ? undefined : v); }}>
-                        <SelectTrigger><SelectValue placeholder="Vai trò" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">Tất cả vai trò</SelectItem>
-                          <SelectItem value="Admin">Admin</SelectItem>
-                          <SelectItem value="Teacher">Teacher</SelectItem>
-                          <SelectItem value="Student">Student</SelectItem>
-                          <SelectItem value="User">User</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Select value={genderFilter ?? "__all__"} onValueChange={(v)=>{ setUserPage(1); setGenderFilter(v === "__all__" ? undefined : v); }}>
-                        <SelectTrigger><SelectValue placeholder="Giới tính" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">Tất cả giới tính</SelectItem>
-                          <SelectItem value="Male">Male</SelectItem>
-                          <SelectItem value="Female">Female</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
                     <div className="rounded border">
                       <Table>
                         <TableHeader>
@@ -222,8 +186,6 @@ export default function ContestDetail() {
                             <TableHead className="w-[36px]"></TableHead>
                             <TableHead>Họ tên</TableHead>
                             <TableHead>Username</TableHead>
-                            <TableHead>Vai trò</TableHead>
-                            <TableHead>Giới tính</TableHead>
                             <TableHead className="text-right">Chọn</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -240,8 +202,6 @@ export default function ContestDetail() {
                               </TableCell>
                               <TableCell>{u.fullname}</TableCell>
                               <TableCell className="text-muted-foreground">@{u.username}</TableCell>
-                              <TableCell>{u.systemRole}</TableCell>
-                              <TableCell>{u.gender || "—"}</TableCell>
                               <TableCell className="text-right">
                                 <Button size="sm" variant="outline" onClick={()=> setOpenAddUser(false)}>Thêm</Button>
                               </TableCell>
@@ -251,18 +211,10 @@ export default function ContestDetail() {
                       </Table>
                     </div>
                     <div className="flex items-center justify-between">
-                      <div className="text-sm text-muted-foreground">Trang {usersPage?.data?.page || userPage}</div>
+                      <div className="text-sm text-muted-foreground">Trang {usersPage?.page || userPage}</div>
                       <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" disabled={userPage<=1 || usersLoading} onClick={()=> setUserPage(p=> Math.max(1, p-1))}>Trước</Button>
                         <Button variant="outline" size="sm" disabled={usersLoading || !hasNextUsers} onClick={()=> setUserPage(p=> p+1)}>Sau</Button>
-                        <Select value={String(userLimit)} onValueChange={(v)=> setUserLimit(Number(v))}>
-                          <SelectTrigger className="w-[96px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="7">7 / trang</SelectItem>
-                            <SelectItem value="14">14 / trang</SelectItem>
-                            <SelectItem value="21">21 / trang</SelectItem>
-                          </SelectContent>
-                        </Select>
                       </div>
                     </div>
                   </div>
