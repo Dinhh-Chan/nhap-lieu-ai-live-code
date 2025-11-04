@@ -51,7 +51,14 @@ export default function ContestDetail() {
 
   const { data: usersPage, isLoading: usersLoading } = useQuery({
     queryKey: ["contest-add-users", userPage, userLimit, searchUser, openAddUser],
-    queryFn: () => UsersApi.searchByUsernamePage(searchUser, userPage, userLimit, { sort: "username" }),
+    queryFn: async () => {
+      if (searchUser.trim()) {
+        return await UsersApi.searchByUsernamePage(searchUser, userPage, userLimit, { sort: "username" });
+      }
+      const params: any = { select: "id,username,fullname", sort: "username" };
+      const res = await UsersApi.list(userPage, userLimit, params);
+      return { page: res.data?.page ?? userPage, limit: res.data?.limit ?? userLimit, total: res.data?.total ?? 0, result: res.data?.result ?? [] };
+    },
     enabled: openAddUser,
   });
 
