@@ -36,6 +36,14 @@ export const TestCasesApi = {
       : payload?.result || payload?.items || payload?.records || payload?.data || [];
     return list as TestCase[];
   },
+  byProblem: async (problemId: string): Promise<TestCase[]> => {
+    const res = await authenticatedApi.get<any>(`${basePath}/by-problem/${problemId}`);
+    const payload = res.data?.data ?? res.data;
+    const list = Array.isArray(payload)
+      ? payload
+      : payload?.result || payload?.items || payload?.records || payload?.data || [];
+    return list as TestCase[];
+  },
   getById: async (id: string): Promise<TestCase> => {
     const res = await authenticatedApi.get<TestCase>(`${basePath}/${id}`);
     return res.data;

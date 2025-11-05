@@ -37,6 +37,8 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import React from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TestCasesApi, type TestCase } from "@/services/test-cases";
 
 export default function Problems() {
   const [open, setOpen] = useState(false);
@@ -50,18 +52,44 @@ export default function Problems() {
   const [rowEditId, setRowEditId] = useState<string | undefined>(undefined);
   const [rowTopicId, setRowTopicId] = useState<string | undefined>(undefined);
   const [rowSubTopicId, setRowSubTopicId] = useState<string | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState<"details" | "testcases">("details");
 
   // Prefill topic/subtopic when opening edit dialog to ensure Select shows saved values
   React.useEffect(() => {
     if (open && editingProblem) {
       setSelectedTopicId(editingProblem.topic_id);
       setSelectedSubTopicId(editingProblem.sub_topic_id);
+      setActiveTab("details");
     }
     if (!open && !editingProblem) {
       setSelectedTopicId(undefined);
       setSelectedSubTopicId(undefined);
+      setActiveTab("details");
     }
   }, [open, editingProblem]);
+
+  // Fetch latest problem detail when editing
+  const { data: editingProblemDetail } = useQuery({
+    queryKey: ["problem-detail", editingProblem?._id, open],
+    queryFn: () => ProblemsApi.getById(editingProblem!._id),
+    enabled: Boolean(editingProblem && open),
+  });
+
+  // Fetch test cases by problem when editing
+  const { data: testCases = [], refetch: refetchTestCases, isLoading: loadingTestCases } = useQuery<TestCase[]>({
+    queryKey: ["test-cases", editingProblem?._id, open],
+    queryFn: () => TestCasesApi.byProblem(editingProblem!._id),
+    enabled: Boolean(editingProblem && open),
+  });
+
+  const addTestCaseMutation = useMutation({
+    mutationFn: (dto: Partial<TestCase>) => TestCasesApi.create(dto as any),
+    onSuccess: () => { refetchTestCases(); toast.success("Đã thêm test case"); },
+  });
+  const updateTestCaseMutation = useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: Partial<TestCase> }) => TestCasesApi.updateById(id, dto as any),
+    onSuccess: () => { refetchTestCases(); toast.success("Đã cập nhật test case"); },
+  });
 
   // auto-save on outside click removed to avoid premature saves
   const [sortKey, setSortKey] = useState<
@@ -271,9 +299,11 @@ export default function Problems() {
           if (editingProblem) {
             setSelectedTopicId(editingProblem.topic_id);
             setSelectedSubTopicId(editingProblem.sub_topic_id);
+            setActiveTab("details");
           } else {
             setSelectedTopicId(undefined);
             setSelectedSubTopicId(undefined);
+            setActiveTab("details");
           }
         }}>
           <DialogTrigger asChild>
@@ -282,129 +312,220 @@ export default function Problems() {
               Add Problem
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-5xl w-[90vw] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingProblem ? "Edit Problem" : "Create Problem"}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="topic_id">Topic</Label>
-                  <Select name="topic_id" value={selectedTopicId} onValueChange={(v) => { setSelectedTopicId(v); setSelectedSubTopicId(undefined); }}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select topic" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {topics.map(topic => (
-                        <SelectItem key={topic._id} value={topic._id}>
-                          {topic.topic_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="sub_topic_id">Sub Topic</Label>
-                  <Select name="sub_topic_id" value={selectedSubTopicId} onValueChange={(v) => setSelectedSubTopicId(v)} disabled={!selectedTopicId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select sub topic" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subTopics
-                        .filter((st) => st.topic_id === selectedTopicId)
-                        .map((subTopic) => (
-                        <SelectItem key={subTopic._id} value={subTopic._id}>
-                          {subTopic.sub_topic_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="name">Problem Name</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  defaultValue={editingProblem?.name}
-                  required
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  name="description"
-                  defaultValue={editingProblem?.description}
-                  required
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="difficulty">Difficulty (1-5)</Label>
-                <Input
-                  id="difficulty"
-                  name="difficulty"
-                  type="number"
-                  min="1"
-                  max="5"
-                  defaultValue={editingProblem?.difficulty}
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="code_template">Code Template</Label>
-                <Textarea
-                  id="code_template"
-                  name="code_template"
-                  defaultValue={editingProblem?.code_template}
-                  className="font-mono text-sm"
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="time_limit_ms">Time Limit (ms)</Label>
-                  <Input
-                    id="time_limit_ms"
-                    name="time_limit_ms"
-                    type="number"
-                    defaultValue={editingProblem?.time_limit_ms}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="memory_limit_mb">Memory Limit (MB)</Label>
-                  <Input
-                    id="memory_limit_mb"
-                    name="memory_limit_mb"
-                    type="number"
-                    defaultValue={editingProblem?.memory_limit_mb}
-                  />
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <Switch id="is_public" name="is_public" defaultChecked={editingProblem?.is_public} />
-                  <Label htmlFor="is_public">Public</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch id="is_active" name="is_active" defaultChecked={editingProblem?.is_active} />
-                  <Label htmlFor="is_active">Active</Label>
-                </div>
-              </div>
-              
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit">
-                  {editingProblem ? "Update" : "Create"}
-                </Button>
-              </div>
-            </form>
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
+              <TabsList className="mb-4">
+                <TabsTrigger value="details">Details</TabsTrigger>
+                {editingProblem && <TabsTrigger value="testcases">Test Cases</TabsTrigger>}
+              </TabsList>
+              <TabsContent value="details">
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="topic_id">Topic</Label>
+                      <Select name="topic_id" value={selectedTopicId} onValueChange={(v) => { setSelectedTopicId(v); setSelectedSubTopicId(undefined); }}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select topic" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {topics.map(topic => (
+                            <SelectItem key={topic._id} value={topic._id}>
+                              {topic.topic_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="sub_topic_id">Sub Topic</Label>
+                      <Select name="sub_topic_id" value={selectedSubTopicId} onValueChange={(v) => setSelectedSubTopicId(v)} disabled={!selectedTopicId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select sub topic" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {subTopics
+                            .filter((st) => st.topic_id === selectedTopicId)
+                            .map((subTopic) => (
+                            <SelectItem key={subTopic._id} value={subTopic._id}>
+                              {subTopic.sub_topic_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="name">Problem Name</Label>
+                    <Input
+                      id="name"
+                      name="name"
+                      defaultValue={editingProblemDetail?.name ?? editingProblem?.name}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                      id="description"
+                      name="description"
+                      defaultValue={editingProblemDetail?.description ?? editingProblem?.description}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="difficulty">Difficulty (1-5)</Label>
+                    <Input
+                      id="difficulty"
+                      name="difficulty"
+                      type="number"
+                      min="1"
+                      max="5"
+                      defaultValue={editingProblemDetail?.difficulty ?? editingProblem?.difficulty}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="code_template">Code Template</Label>
+                    <Textarea
+                      id="code_template"
+                      name="code_template"
+                      defaultValue={editingProblemDetail?.code_template ?? editingProblem?.code_template}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="time_limit_ms">Time Limit (ms)</Label>
+                      <Input
+                        id="time_limit_ms"
+                        name="time_limit_ms"
+                        type="number"
+                        defaultValue={editingProblemDetail?.time_limit_ms ?? editingProblem?.time_limit_ms}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="memory_limit_mb">Memory Limit (MB)</Label>
+                      <Input
+                        id="memory_limit_mb"
+                        name="memory_limit_mb"
+                        type="number"
+                        defaultValue={editingProblemDetail?.memory_limit_mb ?? editingProblem?.memory_limit_mb}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Switch id="is_public" name="is_public" defaultChecked={editingProblemDetail?.is_public ?? editingProblem?.is_public} />
+                      <Label htmlFor="is_public">Public</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch id="is_active" name="is_active" defaultChecked={editingProblemDetail?.is_active ?? editingProblem?.is_active} />
+                      <Label htmlFor="is_active">Active</Label>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit">
+                      {editingProblem ? "Update" : "Create"}
+                    </Button>
+                  </div>
+                </form>
+              </TabsContent>
+              {editingProblem && (
+                <TabsContent value="testcases">
+                  <div className="space-y-4">
+                    <div className="rounded border overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[64px]">#</TableHead>
+                            <TableHead className="min-w-[280px]">Input</TableHead>
+                            <TableHead className="min-w-[280px]">Expected Output</TableHead>
+                            <TableHead className="w-[120px]">Công khai</TableHead>
+                            <TableHead className="w-[120px]">Thứ tự</TableHead>
+                            <TableHead className="text-right w-[120px]">Lưu</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(testCases || []).map((tc, idx) => (
+                            <TableRow key={tc._id}>
+                              <TableCell>{idx + 1}</TableCell>
+                              <TableCell>
+                                <Textarea defaultValue={tc.input_data} onChange={(e) => (tc as any)._input = e.target.value} className="font-mono text-xs" />
+                              </TableCell>
+                              <TableCell>
+                                <Textarea defaultValue={tc.expected_output} onChange={(e) => (tc as any)._output = e.target.value} className="font-mono text-xs" />
+                              </TableCell>
+                              <TableCell>
+                                <Switch defaultChecked={tc.is_public} onCheckedChange={(v) => (tc as any)._public = v} />
+                              </TableCell>
+                              <TableCell>
+                                <Input type="number" defaultValue={tc.order_index ?? idx + 1} onChange={(e) => (tc as any)._order = Number(e.target.value)} />
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button size="sm" variant="outline" onClick={() => updateTestCaseMutation.mutate({ id: tc._id, dto: {
+                                  input_data: (tc as any)._input ?? tc.input_data,
+                                  expected_output: (tc as any)._output ?? tc.expected_output,
+                                  is_public: (tc as any)._public ?? tc.is_public,
+                                  order_index: (tc as any)._order ?? tc.order_index,
+                                } })}>Lưu</Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          {loadingTestCases && (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center text-muted-foreground">Đang tải test cases...</TableCell>
+                            </TableRow>
+                          )}
+                          {!loadingTestCases && testCases.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center text-muted-foreground">Chưa có test case</TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    <div className="rounded border p-3 space-y-2">
+                      <div className="font-medium">Thêm test case</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label>Input</Label>
+                          <Textarea id="new_tc_input" className="font-mono text-xs" />
+                        </div>
+                        <div>
+                          <Label>Expected Output</Label>
+                          <Textarea id="new_tc_output" className="font-mono text-xs" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="flex items-center gap-2">
+                          <Switch id="new_tc_public" />
+                          <Label htmlFor="new_tc_public">Công khai</Label>
+                        </div>
+                        <div>
+                          <Label>Thứ tự</Label>
+                          <Input id="new_tc_order" type="number" defaultValue={testCases.length + 1} />
+                        </div>
+                        <div className="text-right">
+                          <Button size="sm" onClick={() => {
+                            const input = (document.getElementById("new_tc_input") as HTMLTextAreaElement)?.value || "";
+                            const output = (document.getElementById("new_tc_output") as HTMLTextAreaElement)?.value || "";
+                            const pub = (document.getElementById("new_tc_public") as HTMLInputElement)?.checked || false;
+                            const order = Number((document.getElementById("new_tc_order") as HTMLInputElement)?.value || testCases.length + 1);
+                            if (!input && !output) { toast.error("Vui lòng nhập input/output"); return; }
+                            addTestCaseMutation.mutate({ problem_id: editingProblem!._id, input_data: input, expected_output: output, is_public: pub, order_index: order });
+                          }}>Thêm</Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+              )}
+            </Tabs>
           </DialogContent>
         </Dialog>
       </div>
