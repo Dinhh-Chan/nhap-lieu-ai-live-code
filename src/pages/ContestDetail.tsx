@@ -11,12 +11,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ContestsApi, ContestUsersApi, ContestProblemsApi, ContestSubmissionsApi } from "@/services/contests";
 import { ProblemsApi } from "@/services/problems";
 import type { ContestDetailData } from "@/types/contest";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UsersApi } from "@/services/users";
 import { Checkbox } from "@/components/ui/checkbox";
 import KMark from "@/components/KMark";
+import { ClassesApi } from "@/services/classes";
+import { ClassStudentsApi } from "@/services/class-students";
 
 type MockUser = { _id: string; username: string; fullname: string };
 const mockUsers: MockUser[] = [
@@ -45,6 +47,10 @@ export default function ContestDetail() {
   const [userPage, setUserPage] = useState(1);
   const [userLimit] = useState(7);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [openClassDetail, setOpenClassDetail] = useState(false);
+  const [classStudentPage, setClassStudentPage] = useState(1);
+  const [classStudentLimit] = useState(10);
   const [problemPage, setProblemPage] = useState(1);
   const [problemLimit, setProblemLimit] = useState(7);
   const [difficultyFilter, setDifficultyFilter] = useState<string | undefined>(undefined);
@@ -67,6 +73,29 @@ export default function ContestDetail() {
   const userTotal: number = usersPage?.total ?? 0;
   const hasNextUsers = (usersPage?.page ?? userPage) * (usersPage?.limit ?? userLimit) < userTotal;
 
+  const { data: classesData } = useQuery({
+    queryKey: ["classes-many"],
+    queryFn: () => ClassesApi.listMany(),
+    enabled: openAddUser,
+  });
+
+  const classes = classesData?.data || [];
+
+  const { data: classStudentsData, isLoading: classStudentsLoading } = useQuery({
+    queryKey: ["class-students", selectedClassId],
+    queryFn: () => ClassStudentsApi.getByClassId(selectedClassId!),
+    enabled: !!selectedClassId && openAddUser,
+  });
+
+  const allClassStudents = classStudentsData?.data || [];
+  const classStudentsTotal = allClassStudents.length;
+  
+  // Phân trang trên frontend
+  const startIndex = (classStudentPage - 1) * classStudentLimit;
+  const endIndex = startIndex + classStudentLimit;
+  const classStudents = allClassStudents.slice(startIndex, endIndex);
+  const hasNextClassStudents = endIndex < classStudentsTotal;
+
   const { mutate: addUsersToContest, isPending: addingUsers } = useMutation({
     mutationFn: (userIds: string[]) => ContestUsersApi.addMultiple(id!, userIds),
     onSuccess: () => {
@@ -75,6 +104,17 @@ export default function ContestDetail() {
       setSelectedUserIds([]);
     },
   });
+
+  const handleAddAllClassStudents = () => {
+    const studentIds = classStudents
+      .filter((cs: any) => cs.student_id && cs.is_active)
+      .map((cs: any) => cs.student_id);
+    if (studentIds.length > 0) {
+      addUsersToContest(studentIds);
+      setOpenClassDetail(false);
+      setSelectedClassId(null);
+    }
+  };
 
   const { data: problemsPage, isLoading: problemsLoading } = useQuery({
     queryKey: ["contest-add-problems", problemPage, problemLimit, searchProblem, difficultyFilter, openAddProblem],
@@ -184,54 +224,191 @@ export default function ContestDetail() {
             <Badge variant={contest.is_active ? "default" : "secondary"}>{contest.is_active ? "Đang diễn ra" : "Không hoạt động"}</Badge>
             </div>
             <div className="flex items-center gap-2">
-              <Dialog open={openAddUser} onOpenChange={(v)=>{ setOpenAddUser(v); if(!v){ setUserPage(1); setSearchUser(""); setSelectedUserIds([]);} }}>
+              <Dialog open={openAddUser} onOpenChange={(v)=>{ setOpenAddUser(v); if(!v){ setUserPage(1); setSearchUser(""); setSelectedUserIds([]); setSelectedClassId(null); setClassStudentPage(1);} }}>
                 <DialogTrigger asChild>
                   <Button size="sm" variant="outline">Thêm người</Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[560px]">
                   <DialogHeader>
                     <DialogTitle>Thêm người vào contest</DialogTitle>
+                    <DialogDescription>
+                      Chọn lớp hoặc tìm kiếm người dùng để thêm vào contest
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
-                    <Input placeholder="Tìm theo username..." value={searchUser} onChange={(e)=> { setUserPage(1); setSearchUser(e.target.value); }} />
-                    <div className="rounded border">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[36px]"></TableHead>
-                            <TableHead>Họ tên</TableHead>
-                            <TableHead>Username</TableHead>
-                            <TableHead className="text-right">Chọn</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {userResults.map((u: any) => (
-                            <TableRow key={u._id}>
-                              <TableCell>
-                                <Checkbox
-                                  checked={selectedUserIds.includes(u._id)}
-                                  onCheckedChange={(v)=> {
-                                    setSelectedUserIds(prev => v ? [...prev, u._id] : prev.filter(id => id !== u._id));
-                                  }}
-                                />
-                              </TableCell>
-                              <TableCell>{u.fullname}</TableCell>
-                              <TableCell className="text-muted-foreground">@{u.username}</TableCell>
-                              <TableCell className="text-right">
-                                <Button size="sm" variant="outline" onClick={()=> setOpenAddUser(false)}>Thêm</Button>
-                              </TableCell>
-                            </TableRow>
+                    <div className="grid grid-cols-1 gap-2">
+                      <Label>Chọn lớp</Label>
+                      <Select 
+                        value={selectedClassId || undefined} 
+                        onValueChange={(v) => {
+                          setSelectedClassId(v || null);
+                          setClassStudentPage(1);
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Chọn lớp (tùy chọn)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {classes.map((cls: any) => (
+                            <SelectItem key={cls._id} value={cls._id}>
+                              {cls.class_name} ({cls.class_code})
+                            </SelectItem>
                           ))}
-                        </TableBody>
-                      </Table>
+                        </SelectContent>
+                      </Select>
+                      {selectedClassId && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setSelectedClassId(null)}
+                        >
+                          Bỏ chọn lớp
+                        </Button>
+                      )}
                     </div>
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-muted-foreground">Trang {usersPage?.page || userPage}</div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" disabled={userPage<=1 || usersLoading} onClick={()=> setUserPage(p=> Math.max(1, p-1))}>Trước</Button>
-                        <Button variant="outline" size="sm" disabled={usersLoading || !hasNextUsers} onClick={()=> setUserPage(p=> p+1)}>Sau</Button>
-                      </div>
-                    </div>
+                    {selectedClassId ? (
+                      <>
+                        <div className="text-sm font-medium">Danh sách học sinh trong lớp</div>
+                        {classStudentsLoading ? (
+                          <div className="text-center py-8 text-muted-foreground">Đang tải danh sách học sinh...</div>
+                        ) : (
+                          <div className="rounded border">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="w-[36px]"></TableHead>
+                                  <TableHead>Họ tên</TableHead>
+                                  <TableHead>Username</TableHead>
+                                  <TableHead>Trạng thái</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {classStudents
+                                  .filter((cs: any) => cs.is_active)
+                                  .map((cs: any) => (
+                                    <TableRow key={cs._id}>
+                                      <TableCell>
+                                        <Checkbox
+                                          checked={selectedUserIds.includes(cs.student_id)}
+                                          onCheckedChange={(v)=> {
+                                            setSelectedUserIds(prev => v 
+                                              ? [...prev, cs.student_id] 
+                                              : prev.filter(id => id !== cs.student_id)
+                                            );
+                                          }}
+                                        />
+                                      </TableCell>
+                                      <TableCell>
+                                        {cs.student_basic?.fullname || cs.student?.fullname || "—"}
+                                      </TableCell>
+                                      <TableCell className="text-muted-foreground">
+                                        @{cs.student_basic?.username || cs.student?.username || "—"}
+                                      </TableCell>
+                                      <TableCell>
+                                        <Badge variant={cs.is_active ? "default" : "secondary"}>
+                                          {cs.is_active ? "Hoạt động" : "Không hoạt động"}
+                                        </Badge>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                {classStudents.filter((cs: any) => cs.is_active).length === 0 && (
+                                  <TableRow>
+                                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                                      Lớp chưa có học sinh hoạt động
+                                    </TableCell>
+                                  </TableRow>
+                                )}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm text-muted-foreground">
+                            Tổng số học sinh: {classStudentsTotal} (đang hoạt động: {allClassStudents.filter((cs: any) => cs.is_active).length})
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const studentIds = allClassStudents
+                                .filter((cs: any) => cs.student_id && cs.is_active)
+                                .map((cs: any) => cs.student_id);
+                              if (studentIds.length > 0) {
+                                addUsersToContest(studentIds);
+                              }
+                            }}
+                            disabled={classStudentsLoading || allClassStudents.filter((cs: any) => cs.student_id && cs.is_active).length === 0 || addingUsers}
+                          >
+                            {addingUsers ? "Đang thêm..." : `Thêm tất cả đang hoạt động (${allClassStudents.filter((cs: any) => cs.student_id && cs.is_active).length})`}
+                          </Button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm text-muted-foreground">
+                            Trang {classStudentPage} / {Math.ceil(classStudentsTotal / classStudentLimit)}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              disabled={classStudentPage <= 1 || classStudentsLoading} 
+                              onClick={() => setClassStudentPage(p => Math.max(1, p - 1))}
+                            >
+                              Trước
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              disabled={classStudentsLoading || !hasNextClassStudents} 
+                              onClick={() => setClassStudentPage(p => p + 1)}
+                            >
+                              Sau
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <Input placeholder="Tìm theo username..." value={searchUser} onChange={(e)=> { setUserPage(1); setSearchUser(e.target.value); }} />
+                        <div className="rounded border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-[36px]"></TableHead>
+                                <TableHead>Họ tên</TableHead>
+                                <TableHead>Username</TableHead>
+                                <TableHead className="text-right">Chọn</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {userResults.map((u: any) => (
+                                <TableRow key={u._id}>
+                                  <TableCell>
+                                    <Checkbox
+                                      checked={selectedUserIds.includes(u._id)}
+                                      onCheckedChange={(v)=> {
+                                        setSelectedUserIds(prev => v ? [...prev, u._id] : prev.filter(id => id !== u._id));
+                                      }}
+                                    />
+                                  </TableCell>
+                                  <TableCell>{u.fullname}</TableCell>
+                                  <TableCell className="text-muted-foreground">@{u.username}</TableCell>
+                                  <TableCell className="text-right">
+                                    <Button size="sm" variant="outline" onClick={()=> setOpenAddUser(false)}>Thêm</Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm text-muted-foreground">Trang {usersPage?.page || userPage}</div>
+                          <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" disabled={userPage<=1 || usersLoading} onClick={()=> setUserPage(p=> Math.max(1, p-1))}>Trước</Button>
+                            <Button variant="outline" size="sm" disabled={usersLoading || !hasNextUsers} onClick={()=> setUserPage(p=> p+1)}>Sau</Button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <DialogFooter>
                     <Button
@@ -252,6 +429,75 @@ export default function ContestDetail() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+              <Dialog open={openClassDetail} onOpenChange={setOpenClassDetail}>
+                <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {classes.find((c: any) => c._id === selectedClassId)?.class_name || "Chi tiết lớp"}
+                    </DialogTitle>
+                    <DialogDescription>
+                      Danh sách học sinh trong lớp
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    {classStudentsLoading ? (
+                      <div className="text-center py-8 text-muted-foreground">Đang tải...</div>
+                    ) : (
+                      <>
+                        <div className="rounded border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Họ tên</TableHead>
+                                <TableHead>Username</TableHead>
+                                <TableHead>Trạng thái</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {classStudents.map((cs: any) => (
+                                <TableRow key={cs._id}>
+                                  <TableCell>
+                                    {cs.student_basic?.fullname || cs.student?.fullname || cs.student?.firstname || cs.student?.lastname || "—"}
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">
+                                    @{cs.student_basic?.username || cs.student?.username || "—"}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant={cs.is_active ? "default" : "secondary"}>
+                                      {cs.is_active ? "Hoạt động" : "Không hoạt động"}
+                                    </Badge>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                              {classStudents.length === 0 && (
+                                <TableRow>
+                                  <TableCell colSpan={3} className="text-center text-muted-foreground">
+                                    Lớp chưa có học sinh
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </TableBody>
+                          </Table>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Tổng số học sinh: {classStudents.filter((cs: any) => cs.is_active).length}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button variant="secondary" onClick={() => setOpenClassDetail(false)}>
+                      Đóng
+                    </Button>
+                    <Button
+                      onClick={handleAddAllClassStudents}
+                      disabled={classStudentsLoading || classStudents.filter((cs: any) => cs.student_id && cs.is_active).length === 0 || addingUsers}
+                    >
+                      {addingUsers ? "Đang thêm..." : `Thêm toàn bộ thành viên (${classStudents.filter((cs: any) => cs.student_id && cs.is_active).length})`}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
               <Dialog open={openAddProblem} onOpenChange={setOpenAddProblem}>
                 <DialogTrigger asChild>
                   <Button size="sm">Thêm bài tập</Button>
@@ -259,6 +505,9 @@ export default function ContestDetail() {
                 <DialogContent className="sm:max-w-[95vw] max-w-[95vw] max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Thêm bài tập vào contest</DialogTitle>
+                    <DialogDescription>
+                      Tìm kiếm và chọn bài tập để thêm vào contest
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -369,6 +618,9 @@ export default function ContestDetail() {
                 <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>{problemDetail?.name || "Chi tiết bài tập"}</DialogTitle>
+                    <DialogDescription>
+                      Thông tin chi tiết và mô tả bài tập
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
                     {problemDetailLoading ? (
@@ -472,6 +724,9 @@ export default function ContestDetail() {
                             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                               <DialogHeader>
                                 <DialogTitle>Mã nguồn - {selectedSubmission?.problem?.name || selectedSubmission?.problem_id || ""}</DialogTitle>
+                                <DialogDescription>
+                                  Mã nguồn bài nộp của học sinh
+                                </DialogDescription>
                               </DialogHeader>
                               <div className="bg-muted p-4 rounded">
                                 <pre className="text-sm overflow-x-auto">
