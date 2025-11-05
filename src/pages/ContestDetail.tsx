@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Users, Code, Calendar, ListOrdered, CheckCircle2, XCircle } from "lucide-react";
+import { ArrowLeft, Users, Code, Calendar, ListOrdered, CheckCircle2, XCircle, Edit } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ContestsApi, ContestUsersApi, ContestProblemsApi, ContestSubmissionsApi } from "@/services/contests";
 import { ProblemsApi } from "@/services/problems";
@@ -14,6 +14,7 @@ import type { ContestDetailData } from "@/types/contest";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { UsersApi } from "@/services/users";
 import { Checkbox } from "@/components/ui/checkbox";
 import KMark from "@/components/KMark";
@@ -55,6 +56,18 @@ export default function ContestDetail() {
   const [problemLimit, setProblemLimit] = useState(7);
   const [difficultyFilter, setDifficultyFilter] = useState<string | undefined>(undefined);
   const [selectedProblemIds, setSelectedProblemIds] = useState<string[]>([]);
+  const [openEditContest, setOpenEditContest] = useState(false);
+  const [editForm, setEditForm] = useState<any>({
+    contest_name: "",
+    description: "",
+    start_time: "",
+    end_time: "",
+    is_active: true,
+    duration_minutes: 0,
+    max_problems: 0,
+    order_index: 0,
+    type: "practice",
+  });
 
   const { data: usersPage, isLoading: usersLoading } = useQuery({
     queryKey: ["contest-add-users", userPage, userLimit, searchUser, openAddUser],
@@ -114,6 +127,50 @@ export default function ContestDetail() {
       setOpenClassDetail(false);
       setSelectedClassId(null);
     }
+  };
+
+  // Khi mở dialog chỉnh sửa, điền form với dữ liệu hiện tại
+  const handleOpenEditDialog = () => {
+    if (contest) {
+      const startTime = contest.start_time ? new Date(contest.start_time).toISOString().slice(0, 16) : "";
+      const endTime = contest.end_time ? new Date(contest.end_time).toISOString().slice(0, 16) : "";
+      setEditForm({
+        contest_name: contest.contest_name || "",
+        description: contest.description || "",
+        start_time: startTime,
+        end_time: endTime,
+        is_active: contest.is_active ?? true,
+        duration_minutes: contest.duration_minutes ?? 0,
+        max_problems: contest.max_problems ?? 0,
+        order_index: contest.order_index ?? 0,
+        type: contest.type || "practice",
+      });
+      setOpenEditContest(true);
+    }
+  };
+
+  const { mutate: updateContest, isPending: updatingContest } = useMutation({
+    mutationFn: (payload: Partial<any>) => ContestsApi.update(id!, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contest", id] });
+      queryClient.invalidateQueries({ queryKey: ["contests", "many"] });
+      setOpenEditContest(false);
+    },
+  });
+
+  const handleUpdateContest = () => {
+    const payload: any = {
+      contest_name: editForm.contest_name || contest?.contest_name,
+      description: editForm.description,
+      start_time: editForm.start_time ? new Date(editForm.start_time).toISOString() : contest?.start_time,
+      end_time: editForm.end_time ? new Date(editForm.end_time).toISOString() : contest?.end_time,
+      is_active: editForm.is_active,
+      duration_minutes: Number(editForm.duration_minutes) || 0,
+      max_problems: Number(editForm.max_problems) || 0,
+      order_index: Number(editForm.order_index) || 0,
+      type: editForm.type || "practice",
+    };
+    updateContest(payload);
   };
 
   const { data: problemsPage, isLoading: problemsLoading } = useQuery({
@@ -224,6 +281,10 @@ export default function ContestDetail() {
             <Badge variant={contest.is_active ? "default" : "secondary"}>{contest.is_active ? "Đang diễn ra" : "Không hoạt động"}</Badge>
             </div>
             <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={handleOpenEditDialog}>
+                <Edit className="h-4 w-4 mr-2" />
+                Chỉnh sửa
+              </Button>
               <Dialog open={openAddUser} onOpenChange={(v)=>{ setOpenAddUser(v); if(!v){ setUserPage(1); setSearchUser(""); setSelectedUserIds([]); setSelectedClassId(null); setClassStudentPage(1);} }}>
                 <DialogTrigger asChild>
                   <Button size="sm" variant="outline">Thêm người</Button>
@@ -494,6 +555,76 @@ export default function ContestDetail() {
                       disabled={classStudentsLoading || classStudents.filter((cs: any) => cs.student_id && cs.is_active).length === 0 || addingUsers}
                     >
                       {addingUsers ? "Đang thêm..." : `Thêm toàn bộ thành viên (${classStudents.filter((cs: any) => cs.student_id && cs.is_active).length})`}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              <Dialog open={openEditContest} onOpenChange={setOpenEditContest}>
+                <DialogContent className="sm:max-w-[560px]">
+                  <DialogHeader>
+                    <DialogTitle>Chỉnh sửa contest</DialogTitle>
+                    <DialogDescription>
+                      Cập nhật thông tin contest
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label className="text-right">Tên</Label>
+                      <Input className="col-span-3" value={editForm.contest_name} onChange={e => setEditForm({ ...editForm, contest_name: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label className="text-right">Mô tả</Label>
+                      <Input className="col-span-3" value={editForm.description} onChange={e => setEditForm({ ...editForm, description: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label className="text-right">Bắt đầu</Label>
+                      <Input type="datetime-local" className="col-span-3" value={editForm.start_time}
+                        onChange={e => setEditForm({ ...editForm, start_time: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label className="text-right">Kết thúc</Label>
+                      <Input type="datetime-local" className="col-span-3" value={editForm.end_time}
+                        onChange={e => setEditForm({ ...editForm, end_time: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label className="text-right">Thời lượng (phút)</Label>
+                      <Input type="number" min={0} className="col-span-3" value={editForm.duration_minutes}
+                        onChange={e => setEditForm({ ...editForm, duration_minutes: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label className="text-right">Số bài tối đa</Label>
+                      <Input type="number" min={0} className="col-span-3" value={editForm.max_problems}
+                        onChange={e => setEditForm({ ...editForm, max_problems: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label className="text-right">Thứ tự</Label>
+                      <Input type="number" min={0} className="col-span-3" value={editForm.order_index}
+                        onChange={e => setEditForm({ ...editForm, order_index: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label className="text-right">Loại</Label>
+                      <div className="col-span-3">
+                        <Select value={editForm.type} onValueChange={(v)=> setEditForm({ ...editForm, type: v })}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Chọn loại" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="practice">practice</SelectItem>
+                            <SelectItem value="exam">exam</SelectItem>
+                            <SelectItem value="test">test</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label>Kích hoạt</Label>
+                      <Switch checked={!!editForm.is_active} onCheckedChange={(v) => setEditForm({ ...editForm, is_active: v })} />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="secondary" onClick={() => setOpenEditContest(false)}>Hủy</Button>
+                    <Button onClick={handleUpdateContest} disabled={updatingContest}>
+                      {updatingContest ? "Đang cập nhật..." : "Cập nhật"}
                     </Button>
                   </DialogFooter>
                 </DialogContent>

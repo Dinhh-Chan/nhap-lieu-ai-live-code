@@ -20,6 +20,10 @@ export const ContestsApi = {
     const res = await authenticatedApi.post(`/contests`, dto);
     return res.data;
   },
+  update: async (id: string, dto: Partial<ContestCreateDto>) => {
+    const res = await authenticatedApi.put(`/contests/${id}`, dto);
+    return res.data;
+  },
 };
 
 export const ContestUsersApi = {
