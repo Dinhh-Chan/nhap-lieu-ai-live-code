@@ -13,8 +13,13 @@ export const ContestsApi = {
     return res.data;
   },
   getRanking: async (id: string) => {
-    const res = await authenticatedApi.get<ContestRankingResponse>(`/contests/${id}/ranking`);
-    return res.data;
+    const res = await authenticatedApi.get<ContestRankingResponse | any>(`/contests/${id}/ranking`);
+    const payload: any = res.data;
+    // Chuẩn hóa: nếu API trả về mảng trong data, chuyển thành { data: { ranking: [...] } }
+    const ranking = Array.isArray(payload?.data)
+      ? payload.data
+      : (payload?.data?.ranking ?? []);
+    return { success: true, data: { ranking } } as ContestRankingResponse as any;
   },
   create: async (dto: ContestCreateDto) => {
     const res = await authenticatedApi.post(`/contests`, dto);

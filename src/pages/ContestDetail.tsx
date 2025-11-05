@@ -962,16 +962,16 @@ export default function ContestDetail() {
                         {headerProblems.map((p: any, idx: number) => {
                           const pid = p.problem?._id || p.problem_id;
                           const found = row.problems?.find((rp: any) => (rp.problem_id === pid));
-                          const solved = found?.is_solved;
                           const score = found?.score ?? 0;
+                          const isDone = found?.is_done;
                           return (
-                            <TableCell key={`${row.user._id}-${pid}-${idx}`} className={solved ? "bg-green-50" : undefined}>
+                            <TableCell key={`${row.user._id}-${pid}-${idx}`}>
                               <div className="flex items-center gap-2">
-                                {solved ? (
+                                {isDone === true ? (
                                   <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                ) : (
-                                  <XCircle className="h-4 w-4 text-gray-400" />
-                                )}
+                                ) : isDone === false ? (
+                                  <XCircle className="h-4 w-4 text-red-500" />
+                                ) : null}
                                 <span className="text-sm">{score}</span>
                               </div>
                             </TableCell>
