@@ -36,6 +36,7 @@ import { SubTopicsApi, type SubTopic } from "@/services/sub-topics";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import React from "react";
 
 export default function Problems() {
   const [open, setOpen] = useState(false);
@@ -49,6 +50,18 @@ export default function Problems() {
   const [rowEditId, setRowEditId] = useState<string | undefined>(undefined);
   const [rowTopicId, setRowTopicId] = useState<string | undefined>(undefined);
   const [rowSubTopicId, setRowSubTopicId] = useState<string | undefined>(undefined);
+
+  // Prefill topic/subtopic when opening edit dialog to ensure Select shows saved values
+  React.useEffect(() => {
+    if (open && editingProblem) {
+      setSelectedTopicId(editingProblem.topic_id);
+      setSelectedSubTopicId(editingProblem.sub_topic_id);
+    }
+    if (!open && !editingProblem) {
+      setSelectedTopicId(undefined);
+      setSelectedSubTopicId(undefined);
+    }
+  }, [open, editingProblem]);
 
   // auto-save on outside click removed to avoid premature saves
   const [sortKey, setSortKey] = useState<
@@ -528,7 +541,7 @@ export default function Problems() {
                   <TableCell className="truncate" style={{ width: colWidth.topic }}>
                     {rowEditId === problem._id ? (
                       <Select
-                        value={rowTopicId}
+                        value={rowTopicId ?? problem.topic_id}
                         onValueChange={(v) => {
                           setRowTopicId(v);
                           setRowSubTopicId(undefined);
@@ -555,20 +568,20 @@ export default function Problems() {
                   <TableCell className="truncate" style={{ width: colWidth.subTopic }}>
                     {rowEditId === problem._id ? (
                       <Select
-                        value={rowSubTopicId}
+                        value={rowSubTopicId ?? problem.sub_topic_id}
                         onValueChange={(v) => {
                           setRowSubTopicId(v);
                           updateMutation.mutate({ id: problem._id, dto: { sub_topic_id: v } });
                           setRowEditId(undefined);
                         }}
-                        disabled={!rowTopicId}
+                        disabled={!(rowTopicId ?? problem.topic_id)}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select sub topic" />
                         </SelectTrigger>
                         <SelectContent>
                           {subTopics
-                            .filter((st) => st.topic_id === rowTopicId)
+                            .filter((st) => st.topic_id === (rowTopicId ?? problem.topic_id))
                             .map((st) => (
                               <SelectItem key={st._id} value={st._id}>{st.sub_topic_name}</SelectItem>
                             ))}
