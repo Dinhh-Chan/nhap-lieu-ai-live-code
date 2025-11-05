@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UsersApi } from "@/services/users";
 import { Checkbox } from "@/components/ui/checkbox";
+import KMark from "@/components/KMark";
 
 type MockUser = { _id: string; username: string; fullname: string };
 const mockUsers: MockUser[] = [
@@ -123,6 +124,13 @@ export default function ContestDetail() {
   });
   const submissions: any[] = submissionsRes?.data ?? [];
   const [selectedSubmission, setSelectedSubmission] = useState<any | null>(null);
+  const [selectedProblemDetail, setSelectedProblemDetail] = useState<string | null>(null);
+
+  const { data: problemDetail, isLoading: problemDetailLoading } = useQuery({
+    queryKey: ["problem-detail", selectedProblemDetail],
+    queryFn: () => ProblemsApi.getById(selectedProblemDetail!),
+    enabled: !!selectedProblemDetail,
+  });
 
   if (isLoading) {
     return (
@@ -248,7 +256,7 @@ export default function ContestDetail() {
                 <DialogTrigger asChild>
                   <Button size="sm">Thêm bài tập</Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[560px]">
+                <DialogContent className="sm:max-w-[95vw] max-w-[95vw] max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Thêm bài tập vào contest</DialogTitle>
                   </DialogHeader>
@@ -268,20 +276,23 @@ export default function ContestDetail() {
                       </Select>
                       <div />
                     </div>
-                    <div className="rounded border">
+                    <div className="rounded border overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="w-[36px]"></TableHead>
-                            <TableHead>Tên bài</TableHead>
-                            <TableHead>Độ khó</TableHead>
-                            <TableHead>Tests</TableHead>
+                            <TableHead className="w-[40px] min-w-[40px]"></TableHead>
+                            <TableHead className="min-w-[200px]">Tên bài</TableHead>
+                            <TableHead className="min-w-[150px]">Topic</TableHead>
+                            <TableHead className="min-w-[120px]">Sub Topic</TableHead>
+                            <TableHead className="w-[80px] min-w-[80px]">Độ khó</TableHead>
+                            <TableHead className="w-[80px] min-w-[80px]">Tests</TableHead>
+                            <TableHead className="text-right min-w-[120px]">Hành động</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {problemResults.map((p: any) => (
                             <TableRow key={p._id}>
-                              <TableCell>
+                              <TableCell className="w-[40px] min-w-[40px]">
                                 <Checkbox
                                   checked={selectedProblemIds.includes(p._id)}
                                   onCheckedChange={(v)=> {
@@ -289,9 +300,30 @@ export default function ContestDetail() {
                                   }}
                                 />
                               </TableCell>
-                              <TableCell>{p.name}</TableCell>
-                              <TableCell>{p.difficulty}</TableCell>
-                              <TableCell>{p.number_of_tests ?? 0}</TableCell>
+                              <TableCell className="min-w-[200px]">
+                                <div className="max-w-[200px] truncate" title={p.name}>{p.name}</div>
+                              </TableCell>
+                              <TableCell className="min-w-[150px]">
+                                <div className="max-w-[150px] truncate" title={p.topic?.topic_name || "—"}>
+                                  {p.topic?.topic_name || "—"}
+                                </div>
+                              </TableCell>
+                              <TableCell className="min-w-[120px]">
+                                <div className="max-w-[120px] truncate" title={p.sub_topic?.sub_topic_name || "—"}>
+                                  {p.sub_topic?.sub_topic_name || "—"}
+                                </div>
+                              </TableCell>
+                              <TableCell className="w-[80px] min-w-[80px]">{p.difficulty}</TableCell>
+                              <TableCell className="w-[80px] min-w-[80px]">{p.number_of_tests ?? 0}</TableCell>
+                              <TableCell className="text-right min-w-[120px]">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setSelectedProblemDetail(p._id)}
+                                >
+                                  Xem chi tiết
+                                </Button>
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -330,6 +362,56 @@ export default function ContestDetail() {
                     >
                       {addingProblems ? "Đang thêm..." : `Thêm bài đã chọn (${selectedProblemIds.length})`}
                     </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              <Dialog open={!!selectedProblemDetail} onOpenChange={(open) => !open && setSelectedProblemDetail(null)}>
+                <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>{problemDetail?.name || "Chi tiết bài tập"}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    {problemDetailLoading ? (
+                      <div className="text-center py-8 text-muted-foreground">Đang tải...</div>
+                    ) : problemDetail ? (
+                      <>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Topic: </span>
+                            <span className="font-medium">{problemDetail.topic?.topic_name || "—"}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Sub Topic: </span>
+                            <span className="font-medium">{problemDetail.sub_topic?.sub_topic_name || "—"}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Độ khó: </span>
+                            <span className="font-medium">{problemDetail.difficulty}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Thời gian giới hạn: </span>
+                            <span className="font-medium">{problemDetail.time_limit_ms ? `${problemDetail.time_limit_ms}ms` : "—"}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Bộ nhớ giới hạn: </span>
+                            <span className="font-medium">{problemDetail.memory_limit_mb ? `${problemDetail.memory_limit_mb}MB` : "—"}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Số test: </span>
+                            <span className="font-medium">{problemDetail.number_of_tests ?? 0}</span>
+                          </div>
+                        </div>
+                        <div className="border-t pt-4">
+                          <h3 className="text-lg font-semibold mb-3">Mô tả</h3>
+                          <KMark content={problemDetail.description || ""} />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">Không tìm thấy thông tin bài tập</div>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button variant="secondary" onClick={() => setSelectedProblemDetail(null)}>Đóng</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
