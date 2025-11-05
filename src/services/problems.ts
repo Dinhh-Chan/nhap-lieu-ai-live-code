@@ -22,6 +22,12 @@ export const ProblemsApi = {
       throw error;
     }
   },
+  search: async (name: string, page: number = 1, limit: number = 10, difficulty?: number): Promise<ProblemListResponse> => {
+    const params: any = { name, page, limit };
+    if (typeof difficulty === "number") params.difficulty = difficulty;
+    const res = await authenticatedApi.get<ProblemListResponse>(`${basePath}/search`, { params });
+    return res.data;
+  },
   getById: async (id: string): Promise<Problem> => {
     const res = await authenticatedApi.get<{success: boolean; data: Problem}>(`${basePath}/${id}`);
     return res.data.data;

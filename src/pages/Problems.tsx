@@ -53,6 +53,8 @@ export default function Problems() {
   const [rowTopicId, setRowTopicId] = useState<string | undefined>(undefined);
   const [rowSubTopicId, setRowSubTopicId] = useState<string | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<"details" | "testcases">("details");
+  const [tcPage, setTcPage] = useState(1);
+  const tcPageSize = 5;
 
   // Prefill topic/subtopic when opening edit dialog to ensure Select shows saved values
   React.useEffect(() => {
@@ -60,11 +62,13 @@ export default function Problems() {
       setSelectedTopicId(editingProblem.topic_id);
       setSelectedSubTopicId(editingProblem.sub_topic_id);
       setActiveTab("details");
+      setTcPage(1);
     }
     if (!open && !editingProblem) {
       setSelectedTopicId(undefined);
       setSelectedSubTopicId(undefined);
       setActiveTab("details");
+      setTcPage(1);
     }
   }, [open, editingProblem]);
 
@@ -81,6 +85,12 @@ export default function Problems() {
     queryFn: () => TestCasesApi.byProblem(editingProblem!._id),
     enabled: Boolean(editingProblem && open),
   });
+
+  const totalTc = testCases.length;
+  const totalTcPages = Math.max(1, Math.ceil(totalTc / tcPageSize));
+  const tcStart = (tcPage - 1) * tcPageSize;
+  const tcEnd = tcStart + tcPageSize;
+  const visibleTestCases = totalTc > tcPageSize ? testCases.slice(tcStart, tcEnd) : testCases;
 
   const addTestCaseMutation = useMutation({
     mutationFn: (dto: Partial<TestCase>) => TestCasesApi.create(dto as any),
@@ -107,12 +117,14 @@ export default function Problems() {
   const { data: problemsData, isLoading, error } = useQuery({ 
     queryKey: ["problems", page, pageSize, search, topicFilter, subTopicFilter, difficultyFilter, sortKey, sortDir], 
     queryFn: () => {
+      if (search.trim()) {
+        return ProblemsApi.search(search.trim(), page, pageSize, difficultyFilter ? Number(difficultyFilter) : undefined);
+      }
       const params: ProblemListParams = {
         page,
         limit: pageSize
       };
       
-      if (search) params.search = search;
       if (topicFilter) params.topic_id = topicFilter;
       if (subTopicFilter) params.sub_topic_id = subTopicFilter;
       if (difficultyFilter) params.difficulty = Number(difficultyFilter);
@@ -300,10 +312,12 @@ export default function Problems() {
             setSelectedTopicId(editingProblem.topic_id);
             setSelectedSubTopicId(editingProblem.sub_topic_id);
             setActiveTab("details");
+            setTcPage(1);
           } else {
             setSelectedTopicId(undefined);
             setSelectedSubTopicId(undefined);
             setActiveTab("details");
+            setTcPage(1);
           }
         }}>
           <DialogTrigger asChild>
@@ -489,6 +503,15 @@ export default function Problems() {
                         </TableBody>
                       </Table>
                     </div>
+                    {totalTc > tcPageSize && (
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
+                        <div>Trang {tcPage} / {totalTcPages}</div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" disabled={tcPage <= 1} onClick={() => setTcPage((p) => Math.max(1, p - 1))}>Trước</Button>
+                          <Button variant="outline" size="sm" disabled={tcPage >= totalTcPages} onClick={() => setTcPage((p) => Math.min(totalTcPages, p + 1))}>Sau</Button>
+                        </div>
+                      </div>
+                    )}
                     <div className="rounded border p-3 space-y-2">
                       <div className="font-medium">Thêm test case</div>
                       <div className="grid grid-cols-2 gap-2">
