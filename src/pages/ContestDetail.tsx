@@ -80,14 +80,14 @@ export default function ContestDetail() {
     queryKey: ["contest-add-problems", problemPage, problemLimit, searchProblem, difficultyFilter, openAddProblem],
     queryFn: () => {
       const params: any = {};
-      const filters: any[] = [];
       if (searchProblem) {
+        const filters: any[] = [];
         filters.push({ field: "name", operator: "CONTAIN", values: [searchProblem] });
+        params.filters = JSON.stringify(filters);
       }
       if (difficultyFilter) {
-        filters.push({ field: "difficulty", operator: "EQUAL", values: [Number(difficultyFilter)] });
+        params.difficulty = Number(difficultyFilter);
       }
-      if (filters.length > 0) params.filters = JSON.stringify(filters.length === 1 ? filters : [{ operator: "AND", filters }]);
       return ProblemsApi.list(problemPage, problemLimit, params);
     },
     enabled: openAddProblem,
