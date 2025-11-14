@@ -100,6 +100,13 @@ export default function Problems() {
     mutationFn: ({ id, dto }: { id: string; dto: Partial<TestCase> }) => TestCasesApi.updateById(id, dto as any),
     onSuccess: () => { refetchTestCases(); toast.success("Đã cập nhật test case"); },
   });
+  const deleteTestCaseMutation = useMutation({
+    mutationFn: (id: string) => TestCasesApi.deleteById(id),
+    onSuccess: () => {
+      refetchTestCases();
+      toast.success("Đã xóa test case");
+    },
+  });
 
   // auto-save on outside click removed to avoid premature saves
   const [sortKey, setSortKey] = useState<
@@ -454,20 +461,20 @@ export default function Problems() {
                   <div className="space-y-4">
                     <div className="rounded border overflow-x-auto">
                       <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[64px]">#</TableHead>
-                            <TableHead className="min-w-[280px]">Input</TableHead>
-                            <TableHead className="min-w-[280px]">Expected Output</TableHead>
-                            <TableHead className="w-[120px]">Công khai</TableHead>
-                            <TableHead className="w-[120px]">Thứ tự</TableHead>
-                            <TableHead className="text-right w-[120px]">Lưu</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {(testCases || []).map((tc, idx) => (
-                            <TableRow key={tc._id}>
-                              <TableCell>{idx + 1}</TableCell>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[64px]">#</TableHead>
+                        <TableHead className="min-w-[280px]">Input</TableHead>
+                        <TableHead className="min-w-[280px]">Expected Output</TableHead>
+                        <TableHead className="w-[120px]">Công khai</TableHead>
+                        <TableHead className="w-[120px]">Thứ tự</TableHead>
+                        <TableHead className="text-right w-[180px]">Thao tác</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(visibleTestCases || []).map((tc, idx) => (
+                        <TableRow key={tc._id}>
+                          <TableCell>{tcStart + idx + 1}</TableCell>
                               <TableCell>
                                 <Textarea defaultValue={tc.input_data} onChange={(e) => (tc as any)._input = e.target.value} className="font-mono text-xs" />
                               </TableCell>
@@ -480,24 +487,49 @@ export default function Problems() {
                               <TableCell>
                                 <Input type="number" defaultValue={tc.order_index ?? idx + 1} onChange={(e) => (tc as any)._order = Number(e.target.value)} />
                               </TableCell>
-                              <TableCell className="text-right">
-                                <Button size="sm" variant="outline" onClick={() => updateTestCaseMutation.mutate({ id: tc._id, dto: {
-                                  input_data: (tc as any)._input ?? tc.input_data,
-                                  expected_output: (tc as any)._output ?? tc.expected_output,
-                                  is_public: (tc as any)._public ?? tc.is_public,
-                                  order_index: (tc as any)._order ?? tc.order_index,
-                                } })}>Lưu</Button>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  updateTestCaseMutation.mutate({
+                                    id: tc._id,
+                                    dto: {
+                                      input_data: (tc as any)._input ?? tc.input_data,
+                                      expected_output: (tc as any)._output ?? tc.expected_output,
+                                      is_public: (tc as any)._public ?? tc.is_public,
+                                      order_index: (tc as any)._order ?? tc.order_index,
+                                    },
+                                  })
+                                }
+                              >
+                                Lưu
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => {
+                                  if (window.confirm("Bạn có chắc chắn muốn xóa test case này?")) {
+                                    deleteTestCaseMutation.mutate(tc._id);
+                                  }
+                                }}
+                                disabled={deleteTestCaseMutation.isPending}
+                              >
+                                Xóa
+                              </Button>
+                            </div>
                               </TableCell>
                             </TableRow>
                           ))}
                           {loadingTestCases && (
                             <TableRow>
-                              <TableCell colSpan={6} className="text-center text-muted-foreground">Đang tải test cases...</TableCell>
+                          <TableCell colSpan={6} className="text-center text-muted-foreground">Đang tải test cases...</TableCell>
                             </TableRow>
                           )}
                           {!loadingTestCases && testCases.length === 0 && (
                             <TableRow>
-                              <TableCell colSpan={6} className="text-center text-muted-foreground">Chưa có test case</TableCell>
+                          <TableCell colSpan={6} className="text-center text-muted-foreground">Chưa có test case</TableCell>
                             </TableRow>
                           )}
                         </TableBody>

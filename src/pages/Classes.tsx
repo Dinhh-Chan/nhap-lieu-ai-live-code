@@ -206,13 +206,14 @@ export default function Classes() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items.map((c) => (
-                    <TableRow key={c._id}>
+                  {items.map((c) => {
+                    const teacherUsername = c.teacher?.username ?? c.teacher_basic?.username;
+                    return (
+                      <TableRow key={c._id}>
                       <TableCell className="font-medium">{c.class_name}</TableCell>
                       <TableCell className="text-muted-foreground">{c.class_code}</TableCell>
-                      <TableCell>
-                        <div className="font-medium">{c.teacher?.fullname || "—"}</div>
-                        <div className="text-xs text-muted-foreground">@{c.teacher?.username || "—"}</div>
+                      <TableCell className="text-muted-foreground font-medium">
+                        {teacherUsername ? `@${teacherUsername}` : "—"}
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
@@ -253,7 +254,7 @@ export default function Classes() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )})}
                 </TableBody>
               </Table>
             </div>

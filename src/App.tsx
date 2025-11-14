@@ -16,6 +16,7 @@ import Classes from "./pages/Classes";
 import ClassDetail from "./pages/ClassDetail";
 import Contests from "./pages/Contests";
 import ContestDetail from "./pages/ContestDetail";
+import Courses from "./pages/Courses";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -42,6 +43,7 @@ const App = () => (
                 <Route path="/users" element={<Users />} />
                 <Route path="/users/:id/submissions" element={<StudentSubmissions />} />
                 <Route path="/users/:id" element={<UserDetail />} />
+                <Route path="/courses" element={<Courses />} />
                 <Route path="/classes" element={<Classes />} />
                 <Route path="/classes/:id" element={<ClassDetail />} />
                 <Route path="/contests" element={<Contests />} />

@@ -11,6 +11,7 @@ export type ClassItem = {
   is_active?: boolean;
   course?: any;
   teacher?: { _id: string; username?: string; fullname?: string } | null;
+  teacher_basic?: { _id: string; username?: string; fullname?: string } | null;
   students?: any[];
 };
 

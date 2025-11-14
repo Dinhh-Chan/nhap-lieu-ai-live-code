@@ -1,4 +1,4 @@
-import { Home, BookOpen, List, Code, TestTube, LogOut, User, Users, Trophy, GraduationCap } from "lucide-react";
+import { Home, BookOpen, List, Code, LogOut, User, Users, Trophy, GraduationCap, Layers } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -20,9 +20,9 @@ const items = [
   { title: "Topics", url: "/topics", icon: BookOpen },
   { title: "Sub Topics", url: "/sub-topics", icon: List },
   { title: "Problems", url: "/problems", icon: Code },
-  { title: "Test Cases", url: "/test-cases", icon: TestTube },
   { title: "Users", url: "/users", icon: Users },
   { title: "Contests", url: "/contests", icon: Trophy },
+  { title: "Courses", url: "/courses", icon: Layers },
   { title: "Classes", url: "/classes", icon: GraduationCap },
 ];
 
