@@ -250,14 +250,14 @@ export default function Problems() {
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Problems</h1>
-          <p className="text-muted-foreground">Manage coding problems</p>
+          <h1 className="text-3xl font-bold">Bài tập</h1>
+          <p className="text-muted-foreground">Quản lý bài tập lập trình</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
           <Select value={topicFilter} onValueChange={(v) => { setPage(1); setTopicFilter(v); }}>
             <SelectTrigger className="w-48">
-              <SelectValue placeholder="Filter by Topic" />
+              <SelectValue placeholder="Lọc theo chủ đề" />
             </SelectTrigger>
             <SelectContent>
               {topics.map((t) => (
@@ -267,7 +267,7 @@ export default function Problems() {
           </Select>
           <Select value={subTopicFilter} onValueChange={(v) => { setPage(1); setSubTopicFilter(v); }}>
             <SelectTrigger className="w-48">
-              <SelectValue placeholder="Filter by SubTopic" />
+              <SelectValue placeholder="Lọc theo chủ đề con" />
             </SelectTrigger>
             <SelectContent>
               {subTopics.map((st) => (
@@ -277,7 +277,7 @@ export default function Problems() {
           </Select>
           <Select value={difficultyFilter} onValueChange={(v) => { setPage(1); setDifficultyFilter(v); }}>
             <SelectTrigger className="w-40">
-              <SelectValue placeholder="Difficulty" />
+              <SelectValue placeholder="Độ khó" />
             </SelectTrigger>
             <SelectContent>
               {Array.from({ length: 5 }).map((_, i) => (
@@ -286,17 +286,17 @@ export default function Problems() {
             </SelectContent>
           </Select>
           <Input
-            placeholder="Search problem"
+            placeholder="Tìm kiếm bài tập"
             value={search}
             onChange={(e) => { setPage(1); setSearch(e.target.value); }}
             className="w-64"
           />
           <Button variant="outline" onClick={() => { setSearch(""); setTopicFilter(undefined); setSubTopicFilter(undefined); setDifficultyFilter(undefined); setPage(1); }}>
-            Reset
+            Đặt lại
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">Columns</Button>
+              <Button variant="outline">Cột</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {Object.keys(visibleCols).map((key) => (
@@ -330,26 +330,26 @@ export default function Problems() {
           <DialogTrigger asChild>
             <Button onClick={() => { setEditingProblem(null); setSelectedTopicId(undefined); setSelectedSubTopicId(undefined); }}>
               <Plus className="h-4 w-4 mr-2" />
-              Add Problem
+              Thêm bài tập
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-5xl w-[90vw] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingProblem ? "Edit Problem" : "Create Problem"}</DialogTitle>
+              <DialogTitle>{editingProblem ? "Chỉnh sửa bài tập" : "Tạo bài tập mới"}</DialogTitle>
             </DialogHeader>
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
               <TabsList className="mb-4">
-                <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="details">Chi tiết</TabsTrigger>
                 {editingProblem && <TabsTrigger value="testcases">Test Cases</TabsTrigger>}
               </TabsList>
               <TabsContent value="details">
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="topic_id">Topic</Label>
+                      <Label htmlFor="topic_id">Chủ đề</Label>
                       <Select name="topic_id" value={selectedTopicId} onValueChange={(v) => { setSelectedTopicId(v); setSelectedSubTopicId(undefined); }}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select topic" />
+                          <SelectValue placeholder="Chọn chủ đề" />
                         </SelectTrigger>
                         <SelectContent>
                           {topics.map(topic => (
@@ -361,10 +361,10 @@ export default function Problems() {
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="sub_topic_id">Sub Topic</Label>
+                      <Label htmlFor="sub_topic_id">Chủ đề con</Label>
                       <Select name="sub_topic_id" value={selectedSubTopicId} onValueChange={(v) => setSelectedSubTopicId(v)} disabled={!selectedTopicId}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select sub topic" />
+                          <SelectValue placeholder="Chọn chủ đề con" />
                         </SelectTrigger>
                         <SelectContent>
                           {subTopics
@@ -379,7 +379,7 @@ export default function Problems() {
                     </div>
                   </div>
                   <div>
-                    <Label htmlFor="name">Problem Name</Label>
+                    <Label htmlFor="name">Tên bài tập</Label>
                     <Input
                       id="name"
                       name="name"
@@ -388,7 +388,7 @@ export default function Problems() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="description">Description</Label>
+                    <Label htmlFor="description">Mô tả</Label>
                     <Textarea
                       id="description"
                       name="description"
@@ -397,7 +397,7 @@ export default function Problems() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="difficulty">Difficulty (1-5)</Label>
+                    <Label htmlFor="difficulty">Độ khó (1-5)</Label>
                     <Input
                       id="difficulty"
                       name="difficulty"
@@ -408,7 +408,7 @@ export default function Problems() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="code_template">Code Template</Label>
+                    <Label htmlFor="code_template">Mẫu code</Label>
                     <Textarea
                       id="code_template"
                       name="code_template"
@@ -418,7 +418,7 @@ export default function Problems() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="time_limit_ms">Time Limit (ms)</Label>
+                      <Label htmlFor="time_limit_ms">Giới hạn thời gian (ms)</Label>
                       <Input
                         id="time_limit_ms"
                         name="time_limit_ms"
@@ -427,7 +427,7 @@ export default function Problems() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="memory_limit_mb">Memory Limit (MB)</Label>
+                      <Label htmlFor="memory_limit_mb">Giới hạn bộ nhớ (MB)</Label>
                       <Input
                         id="memory_limit_mb"
                         name="memory_limit_mb"
@@ -439,19 +439,19 @@ export default function Problems() {
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
                       <Switch id="is_public" name="is_public" defaultChecked={editingProblemDetail?.is_public ?? editingProblem?.is_public} />
-                      <Label htmlFor="is_public">Public</Label>
+                      <Label htmlFor="is_public">Công khai</Label>
                     </div>
                     <div className="flex items-center gap-2">
                       <Switch id="is_active" name="is_active" defaultChecked={editingProblemDetail?.is_active ?? editingProblem?.is_active} />
-                      <Label htmlFor="is_active">Active</Label>
+                      <Label htmlFor="is_active">Kích hoạt</Label>
                     </div>
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                      Cancel
+                      Hủy
                     </Button>
                     <Button type="submit">
-                      {editingProblem ? "Update" : "Create"}
+                      {editingProblem ? "Cập nhật" : "Tạo mới"}
                     </Button>
                   </div>
                 </form>
@@ -464,8 +464,8 @@ export default function Problems() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[64px]">#</TableHead>
-                        <TableHead className="min-w-[280px]">Input</TableHead>
-                        <TableHead className="min-w-[280px]">Expected Output</TableHead>
+                        <TableHead className="min-w-[280px]">Đầu vào</TableHead>
+                        <TableHead className="min-w-[280px]">Đầu ra mong đợi</TableHead>
                         <TableHead className="w-[120px]">Công khai</TableHead>
                         <TableHead className="w-[120px]">Thứ tự</TableHead>
                         <TableHead className="text-right w-[180px]">Thao tác</TableHead>
@@ -548,11 +548,11 @@ export default function Problems() {
                       <div className="font-medium">Thêm test case</div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <Label>Input</Label>
+                          <Label>Đầu vào</Label>
                           <Textarea id="new_tc_input" className="font-mono text-xs" />
                         </div>
                         <div>
-                          <Label>Expected Output</Label>
+                          <Label>Đầu ra mong đợi</Label>
                           <Textarea id="new_tc_output" className="font-mono text-xs" />
                         </div>
                       </div>
@@ -608,7 +608,7 @@ export default function Problems() {
               {visibleCols.name && (
               <TableHead className="relative" style={{ width: colWidth.name }}>
                 <div className="flex items-center gap-2">
-                  <span>Name</span>
+                  <span>Tên</span>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -627,7 +627,7 @@ export default function Problems() {
               {visibleCols.topic && (
               <TableHead className="relative" style={{ width: colWidth.topic }}>
                 <div className="flex items-center gap-2">
-                  <span>Topic</span>
+                  <span>Chủ đề</span>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -646,7 +646,7 @@ export default function Problems() {
               {visibleCols.subTopic && (
               <TableHead className="relative" style={{ width: colWidth.subTopic }}>
                 <div className="flex items-center gap-2">
-                  <span>Sub Topic</span>
+                  <span>Chủ đề con</span>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -665,7 +665,7 @@ export default function Problems() {
               {visibleCols.difficulty && (
               <TableHead className="relative" style={{ width: colWidth.difficulty }}>
                 <div className="flex items-center gap-2">
-                  <span>Difficulty</span>
+                  <span>Độ khó</span>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -684,7 +684,7 @@ export default function Problems() {
               {visibleCols.tests && (
               <TableHead className="relative" style={{ width: colWidth.tests }}>
                 <div className="flex items-center gap-2">
-                  <span>Tests</span>
+                  <span>Số test</span>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -701,10 +701,10 @@ export default function Problems() {
               </TableHead>
               )}
               {visibleCols.status && (
-              <TableHead className="relative" style={{ width: colWidth.status }}>Status<div className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none" onMouseDown={(e) => initResize("status", e)} /></TableHead>
+              <TableHead className="relative" style={{ width: colWidth.status }}>Trạng thái<div className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none" onMouseDown={(e) => initResize("status", e)} /></TableHead>
               )}
               {visibleCols.actions && (
-              <TableHead className="relative text-right" style={{ width: colWidth.actions }}>Actions<div className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none" onMouseDown={(e) => initResize("actions", e)} /></TableHead>
+              <TableHead className="relative text-right" style={{ width: colWidth.actions }}>Thao tác<div className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none" onMouseDown={(e) => initResize("actions", e)} /></TableHead>
               )}
             </TableRow>
           </TableHeader>
@@ -725,7 +725,7 @@ export default function Problems() {
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select topic" />
+                          <SelectValue placeholder="Chọn chủ đề" />
                         </SelectTrigger>
                         <SelectContent>
                           {topics.map((t) => (

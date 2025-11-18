@@ -8,7 +8,6 @@ import Dashboard from "./pages/Dashboard";
 import Topics from "./pages/Topics";
 import SubTopics from "./pages/SubTopics";
 import Problems from "./pages/Problems";
-import TestCases from "./pages/TestCases";
 import Users from "./pages/Users";
 import UserDetail from "./pages/UserDetail";
 import StudentSubmissions from "./pages/StudentSubmissions";
@@ -39,7 +38,6 @@ const App = () => (
                 <Route path="/topics" element={<Topics />} />
                 <Route path="/sub-topics" element={<SubTopics />} />
                 <Route path="/problems" element={<Problems />} />
-                <Route path="/test-cases" element={<TestCases />} />
                 <Route path="/users" element={<Users />} />
                 <Route path="/users/:id/submissions" element={<StudentSubmissions />} />
                 <Route path="/users/:id" element={<UserDetail />} />

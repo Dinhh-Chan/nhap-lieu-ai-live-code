@@ -1,13 +1,21 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Code, Activity, Target, TrendingUp, Calendar } from "lucide-react";
+import { Users, FileQuestion, Trophy, FileText } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { UsersApi } from "@/services/users";
+import { ContestsApi } from "@/services/contests";
 
 export default function Dashboard() {
   const { data: systemStats, isLoading, error } = useQuery({
     queryKey: ["system-statistics"],
     queryFn: () => UsersApi.getSystemStatistics(),
   });
+
+  const { data: contestsData } = useQuery({
+    queryKey: ["contests-many"],
+    queryFn: () => ContestsApi.listMany(),
+  });
+
+  const totalContests = contestsData?.data?.length || 0;
 
   const formatNumber = (num: number | undefined) => {
     if (num === undefined || num === null) return "0";
@@ -23,18 +31,55 @@ export default function Dashboard() {
     });
   };
 
+  // Lấy dữ liệu submissions trong tuần (7 ngày gần nhất)
+  const getWeeklySubmissions = () => {
+    if (!systemStats?.data?.daily_submissions) return [];
+    
+    const dailySubmissions = systemStats.data.daily_submissions;
+    const last7Days = dailySubmissions.slice(-7);
+    
+    // Đảm bảo có đủ 7 ngày
+    const today = new Date();
+    const weekDays = [];
+    
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      const dayData = last7Days.find(d => d.date === dateStr);
+      weekDays.push({
+        date: dateStr,
+        count: dayData?.count || 0,
+        dayName: date.toLocaleDateString("vi-VN", { weekday: "short" })
+      });
+    }
+    
+    return weekDays;
+  };
+
+  const weeklySubmissions = getWeeklySubmissions();
+  
+  // Lấy tên ngày trong tuần (T2, T3, T4, T5, T6, T7, CN)
+  const getDayLabel = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const day = date.getDay();
+    const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+    return dayNames[day];
+  };
+
   if (isLoading) {
     return (
       <div className="p-6 md:p-8 space-y-8">
         <div className="space-y-2">
           <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-            Dashboard
+            Bảng điều khiển
           </h1>
-          <p className="text-muted-foreground">Chào mừng đến với Learning Content Management System</p>
+          <p className="text-muted-foreground">Chào mừng đến với Hệ thống quản lý nội dung học tập</p>
         </div>
         <div className="text-center py-12">
           <div className="inline-block animate-pulse">
-            <Activity className="h-12 w-12 text-primary mx-auto mb-3" />
+            <Users className="h-12 w-12 text-primary mx-auto mb-3" />
             <div className="text-muted-foreground">Đang tải thống kê hệ thống...</div>
           </div>
         </div>
@@ -47,9 +92,9 @@ export default function Dashboard() {
       <div className="p-6 md:p-8 space-y-8">
         <div className="space-y-2">
           <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-            Dashboard
+            Bảng điều khiển
           </h1>
-          <p className="text-muted-foreground">Chào mừng đến với Learning Content Management System</p>
+          <p className="text-muted-foreground">Chào mừng đến với Hệ thống quản lý nội dung học tập</p>
         </div>
         <Card className="border-destructive">
           <CardContent className="pt-6">
@@ -64,299 +109,148 @@ export default function Dashboard() {
 
   const stats = systemStats.data;
 
+  // Top 5 sinh viên xuất sắc (dựa trên số bài đã giải - accepted_submissions)
+  const top5Students = stats.top_users
+    .sort((a, b) => b.accepted_submissions - a.accepted_submissions)
+    .slice(0, 5);
+
+  // Tính max count cho biểu đồ và tạo Y-axis labels động
+  const maxCount = Math.max(...weeklySubmissions.map(d => d.count), 1);
+  const yAxisMax = Math.ceil(maxCount / 100) * 100; // Làm tròn lên bội số của 100
+  const yAxisStep = yAxisMax / 5; // 5 bước
+  const yAxisLabels = [];
+  for (let i = 5; i >= 0; i--) {
+    yAxisLabels.push(Math.round(i * yAxisStep));
+  }
+
   return (
-    <div className="p-6 md:p-8 space-y-8">
-      {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-          Dashboard
-        </h1>
-        <p className="text-muted-foreground">Tổng quan hệ thống và hoạt động gần đây</p>
-      </div>
-
-      {/* Main Stats Grid */}
+    <div className="p-6 md:p-8 space-y-6">
+      {/* 4 Summary Cards */}
       <div className="grid gap-4 md:gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="stat-card border-0 shadow-md bg-gradient-to-br from-card to-card/50 overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-[hsl(var(--stat-users))]/10 rounded-full -mr-16 -mt-16" />
-          <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
-            <CardTitle className="text-sm font-medium">Tổng Users</CardTitle>
-            <div className="p-2 rounded-lg bg-[hsl(var(--stat-users))]/10">
-              <Users className="h-5 w-5 stat-icon-users" />
-            </div>
+        <Card className="border shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Tổng người dùng</CardTitle>
+            <Users className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="relative z-10">
+          <CardContent>
             <div className="text-3xl font-bold">{formatNumber(stats.total_users)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Người dùng đã đăng ký</p>
           </CardContent>
         </Card>
 
-        <Card className="stat-card border-0 shadow-md bg-gradient-to-br from-card to-card/50 overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-[hsl(var(--stat-problems))]/10 rounded-full -mr-16 -mt-16" />
-          <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
-            <CardTitle className="text-sm font-medium">Tổng Problems</CardTitle>
-            <div className="p-2 rounded-lg bg-[hsl(var(--stat-problems))]/10">
-              <Code className="h-5 w-5 stat-icon-problems" />
-            </div>
+        <Card className="border shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Tổng số câu hỏi</CardTitle>
+            <FileQuestion className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="relative z-10">
+          <CardContent>
             <div className="text-3xl font-bold">{formatNumber(stats.total_problems)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Bài tập có sẵn</p>
           </CardContent>
         </Card>
 
-        <Card className="stat-card border-0 shadow-md bg-gradient-to-br from-card to-card/50 overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-[hsl(var(--stat-submissions))]/10 rounded-full -mr-16 -mt-16" />
-          <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
-            <CardTitle className="text-sm font-medium">Tổng Submissions</CardTitle>
-            <div className="p-2 rounded-lg bg-[hsl(var(--stat-submissions))]/10">
-              <Activity className="h-5 w-5 stat-icon-submissions" />
-            </div>
+        <Card className="border shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Tổng số lần nộp bài</CardTitle>
+            <FileText className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="relative z-10">
+          <CardContent>
             <div className="text-3xl font-bold">{formatNumber(stats.total_submissions)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Bài nộp tổng cộng</p>
           </CardContent>
         </Card>
 
-        <Card className="stat-card border-0 shadow-md bg-gradient-to-br from-card to-card/50 overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-[hsl(var(--stat-warning))]/10 rounded-full -mr-16 -mt-16" />
-          <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
-            <CardTitle className="text-sm font-medium">Tỷ lệ AC</CardTitle>
-            <div className="p-2 rounded-lg bg-[hsl(var(--stat-warning))]/10">
-              <Target className="h-5 w-5 stat-icon-warning" />
-            </div>
+        <Card className="border shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Tổng số cuộc thi</CardTitle>
+            <Trophy className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="relative z-10">
-            <div className="text-3xl font-bold">{stats.overall_ac_rate.toFixed(1)}%</div>
-            <p className="text-xs text-muted-foreground mt-1">Tỷ lệ chấp nhận</p>
+          <CardContent>
+            <div className="text-3xl font-bold">{formatNumber(totalContests)}</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Activity & Stats Grid */}
-      <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
-        {/* Submissions Activity */}
-        <Card className="border-0 shadow-md">
+      {/* Main Content Grid: Chart + Top Students */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Submissions Chart - 2 columns */}
+        <Card className="lg:col-span-2 border shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <div className="p-2 rounded-lg gradient-primary">
-                <TrendingUp className="h-4 w-4 text-white" />
-              </div>
-              <span>Hoạt động Submissions</span>
-            </CardTitle>
+            <CardTitle>Submissions trong tuần</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Hôm nay</span>
+            <div className="h-80">
+              <div className="flex flex-col h-full">
+                {/* Chart area with Y-axis and bars */}
+                <div className="flex-1 relative" style={{ height: '280px' }}>
+                  {/* Y-axis */}
+                  <div className="absolute left-0 top-0 bottom-0 w-12 flex flex-col justify-between text-xs text-muted-foreground pr-2">
+                    {yAxisLabels.map((value) => (
+                      <div key={value} className="text-right">{value}</div>
+                    ))}
+                  </div>
+                  
+                  {/* Bars container */}
+                  <div className="absolute left-12 right-0 bottom-0 top-0 flex items-end gap-2">
+                    {weeklySubmissions.map((day) => {
+                      const heightPercent = yAxisMax > 0 ? (day.count / yAxisMax) * 100 : 0;
+                      const barHeight = (280 * heightPercent) / 100; // Tính chiều cao thực tế theo pixel
+                      return (
+                        <div key={day.date} className="flex-1 flex flex-col items-center justify-end">
+                          <div className="w-full flex flex-col items-center">
+                            <div
+                              className="w-full bg-primary rounded-t transition-all duration-300 hover:opacity-80"
+                              style={{ 
+                                height: `${barHeight}px`,
+                                minHeight: day.count > 0 ? '2px' : '0'
+                              }}
+                              title={`${getDayLabel(day.date)}: ${day.count} bài nộp`}
+                            />
+                            <div className="text-xs font-semibold mt-1">{day.count}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <span className="text-lg font-bold">{stats.today_submissions}</span>
-              </div>
-              <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Tuần này</span>
-                </div>
-                <span className="text-lg font-bold">{formatNumber(stats.this_week_submissions)}</span>
-              </div>
-              <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Tháng này</span>
-                </div>
-                <span className="text-lg font-bold">{formatNumber(stats.this_month_submissions)}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Language Stats */}
-        <Card className="border-0 shadow-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <div className="p-2 rounded-lg gradient-success">
-                <Code className="h-4 w-4 text-white" />
-              </div>
-              <span>Ngôn ngữ phổ biến</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {Object.entries(stats.language_stats)
-                .sort(([,a], [,b]) => b - a)
-                .slice(0, 5)
-                .map(([lang, count], index) => {
-                  const total = Object.values(stats.language_stats).reduce((a, b) => a + b, 0);
-                  const percentage = ((count / total) * 100).toFixed(0);
-                  return (
-                    <div key={lang} className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium capitalize">{lang}</span>
-                        <span className="text-sm text-muted-foreground">{formatNumber(count)} ({percentage}%)</span>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div 
-                          className="h-full gradient-success rounded-full transition-all duration-500"
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
+                
+                {/* X-axis labels */}
+                <div className="flex gap-2 ml-12 mt-2">
+                  {weeklySubmissions.map((day) => (
+                    <div key={`label-${day.date}`} className="flex-1 text-center">
+                      <div className="text-xs text-muted-foreground">{getDayLabel(day.date)}</div>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Status Stats */}
-        <Card className="border-0 shadow-md">
+        {/* Top 5 Students - 1 column */}
+        <Card className="border shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <div className="p-2 rounded-lg gradient-purple">
-                <Activity className="h-4 w-4 text-white" />
-              </div>
-              <span>Trạng thái Submissions</span>
-            </CardTitle>
+            <CardTitle>Top 5 sinh viên xuất sắc</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <div className="flex justify-between items-center p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-[hsl(var(--stat-success))]" />
-                  <span className="text-sm">Accepted</span>
-                </div>
-                <span className="text-sm font-semibold">{formatNumber(stats.status_stats.accepted)}</span>
-              </div>
-              <div className="flex justify-between items-center p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-[hsl(var(--stat-error))]" />
-                  <span className="text-sm">Wrong Answer</span>
-                </div>
-                <span className="text-sm font-semibold">{formatNumber(stats.status_stats.wrong_answer)}</span>
-              </div>
-              <div className="flex justify-between items-center p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-[hsl(var(--stat-warning))]" />
-                  <span className="text-sm">Pending</span>
-                </div>
-                <span className="text-sm font-semibold">0</span>
-              </div>
-              <div className="flex justify-between items-center p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-[hsl(var(--stat-error))]" />
-                  <span className="text-sm">Internal Error</span>
-                </div>
-                <span className="text-sm font-semibold">0</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Top Users */}
-      <Card className="border-0 shadow-md">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <div className="p-2 rounded-lg gradient-primary">
-              <Users className="h-4 w-4 text-white" />
-            </div>
-            <span>Top Users</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {stats.top_users.slice(0, 6).map((user, index) => {
-              const acRate = user.total_submissions > 0 
-                ? ((user.accepted_submissions / user.total_submissions) * 100).toFixed(1)
-                : '0.0';
-              
-              return (
-                <div 
-                  key={user.user_id} 
-                  className="group flex items-center gap-3 p-4 rounded-lg border bg-card hover:shadow-md transition-all duration-300 hover:-translate-y-0.5"
+              {top5Students.map((student, index) => (
+                <div
+                  key={student.user_id}
+                  className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
                 >
-                  <div className="relative">
-                    <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-sm font-bold text-white flex-shrink-0 group-hover:scale-110 transition-transform">
-                      {index + 1}
-                    </div>
-                    {index < 3 && (
-                      <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[hsl(var(--stat-warning))] border-2 border-background" />
-                    )}
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
+                    #{index + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate">{user.username}</div>
-                    <div className="text-xs text-muted-foreground">AC Rate: {acRate}%</div>
+                    <div className="font-semibold truncate">{student.username}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {student.accepted_submissions} bài đã giải
+                    </div>
                   </div>
-                   <div className="text-right font-mono tabular-nums">
-                     <div className="text-lg font-bold stat-icon-success">
-                       {user.accepted_submissions}/{user.total_submissions}
-                     </div>
-                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Daily Submissions Chart */}
-      <Card className="border-0 shadow-md">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <div className="p-2 rounded-lg gradient-purple">
-              <TrendingUp className="h-4 w-4 text-white" />
+              ))}
             </div>
-            <span>Submissions trong 7 ngày gần đây</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-80">
-            <div className="flex flex-col h-full">
-              <div className="flex justify-between px-2 mb-2">
-                {stats.daily_submissions.slice(-7).map((day) => (
-                  <div key={`count-${day.date}`} className="flex-1 text-center">
-                    <div className="text-xs font-semibold">{day.count}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="flex-1 flex items-end">
-                {stats.daily_submissions.slice(-7).map((day, index) => {
-                  const last7Days = stats.daily_submissions.slice(-7);
-                  const maxCount = Math.max(...last7Days.map(d => d.count)) || 1;
-                  const height = (day.count / maxCount) * 100;
-                  const isToday = index === last7Days.length - 1;
-                  
-                  return (
-                    <div key={day.date} className="flex-1 px-2">
-                      <div 
-                        className={`w-full rounded-t-md transition-all duration-500 hover:opacity-80 ${
-                          isToday ? 'bg-[hsl(var(--stat-success))]/90' : 'bg-[hsl(var(--stat-success))]'
-                        }`}
-                        style={{ height: `${Math.max(height, 5)}%` }}
-                        title={`${formatDate(day.date)}: ${day.count} submissions`}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="flex justify-between pt-2 mt-2 border-t">
-                {stats.daily_submissions.slice(-7).map((day, index) => {
-                  const last7Days = stats.daily_submissions.slice(-7);
-                  const isToday = index === last7Days.length - 1;
-                  return (
-                    <div key={`date-${day.date}`} className="flex-1 text-center">
-                      <div className={`text-xs ${isToday ? 'font-bold' : 'text-muted-foreground'}`}>
-                        {formatDate(day.date)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
