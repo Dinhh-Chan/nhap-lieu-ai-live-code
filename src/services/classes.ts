@@ -1,5 +1,5 @@
 import { createAuthenticatedApiClient } from "@/services/api";
-import type { ClassesManyResponse } from "@/types/class";
+import type { ClassesManyResponse, ClassOverviewResponse } from "@/types/class";
 
 const authenticatedApi = createAuthenticatedApiClient();
 
@@ -14,6 +14,10 @@ export const ClassesApi = {
   },
   deleteById: async (id: string) => {
     const res = await authenticatedApi.delete(`/classes/${id}`);
+    return res.data;
+  },
+  getOverview: async (id: string): Promise<ClassOverviewResponse> => {
+    const res = await authenticatedApi.get<ClassOverviewResponse>(`/classes/${id}/overview`);
     return res.data;
   },
 };

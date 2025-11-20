@@ -1,15 +1,17 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Bot, Loader2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ClassStudentsApi } from "@/services/class-students";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { UsersApi } from "@/services/users";
+import { ClassesApi } from "@/services/classes";
 import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
+import KMark from "@/components/KMark";
 
 export default function ClassDetail() {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +29,7 @@ export default function ClassDetail() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(7);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const { data: studentsPick, isLoading: picking } = useQuery({
     queryKey: ["pick-students", page, limit, search, openAdd],
     queryFn: () => UsersApi.searchByUsernamePage(search, page, limit, { sort: "username" }),
@@ -52,17 +55,34 @@ export default function ClassDetail() {
     },
   });
 
+  const { data: overviewData, isLoading: isLoadingOverview, isError: isErrorOverview } = useQuery({
+    queryKey: ["class-overview", id],
+    queryFn: () => ClassesApi.getOverview(id!),
+    enabled: !!id && aiDialogOpen,
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
+  });
+
   return (
     <div className="p-8">
-      <div className="flex items-center gap-4 mb-6">
-        <Button variant="outline" onClick={() => navigate("/classes") }>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Quay lại
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold">Chi tiết lớp học</h1>
-          <p className="text-muted-foreground">ID: {id}</p>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <Button variant="outline" onClick={() => navigate("/classes") }>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Quay lại
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">Chi tiết lớp học</h1>
+            <p className="text-muted-foreground">ID: {id}</p>
+          </div>
         </div>
+        <Button 
+          onClick={() => setAiDialogOpen(true)}
+          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+        >
+          <Bot className="h-4 w-4 mr-2" />
+          Phân tích AI
+        </Button>
       </div>
 
       <Card>
@@ -159,6 +179,53 @@ export default function ClassDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* AI Analysis Dialog */}
+      <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Phân tích lớp học từ AI
+            </DialogTitle>
+            <DialogDescription className="text-base">
+              Phân tích chi tiết về hiệu suất và khả năng của lớp học
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto mt-4 pr-2">
+            {isLoadingOverview ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin mr-2 text-blue-500" />
+                <span className="text-muted-foreground mt-4">Đang phân tích thông tin...</span>
+                <p className="text-xs text-muted-foreground mt-2">Quá trình này có thể mất khoảng 10 giây</p>
+              </div>
+            ) : isErrorOverview ? (
+              <div className="text-center py-12">
+                <div className="text-red-500 font-semibold mb-2">Không thể tạo phân tích</div>
+                <p className="text-sm text-muted-foreground">Máy chủ đang bận. Vui lòng thử lại sau vài phút.</p>
+                <Button 
+                  onClick={() => setAiDialogOpen(false)} 
+                  variant="outline" 
+                  className="mt-4"
+                >
+                  Đóng
+                </Button>
+              </div>
+            ) : overviewData?.data?.aiAnalysisKmark ? (
+              <div className="bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 rounded-lg p-6 md:p-8 border border-slate-200 dark:border-slate-700 shadow-sm">
+                <KMark 
+                  content={overviewData.data.aiAnalysisKmark.replace(/^```kmark\n/, "").replace(/\n```$/, "")} 
+                  className="w-full"
+                />
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="text-muted-foreground">Không có dữ liệu phân tích</div>
+                <p className="text-sm text-muted-foreground mt-2">Vui lòng thử lại sau</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
