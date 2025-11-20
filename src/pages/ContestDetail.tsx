@@ -78,9 +78,16 @@ type ProblemFilterState = {
   difficulty?: string;
 };
 
+type SubTopicProblemResult = {
+  list: Problem[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
 type ProblemsQueryResult =
   | { mode: "paged"; data: ProblemListResponse }
-  | { mode: "subTopic"; data: Problem[] };
+  | { mode: "subTopic"; data: SubTopicProblemResult };
 
 type MockUser = { _id: string; username: string; fullname: string };
 const mockUsers: MockUser[] = [
@@ -251,16 +258,40 @@ export default function ContestDetail() {
   };
 
   const usingSubTopicFilter = !!problemFilters.subTopicId;
+  const hasProblemFilters = Boolean(problemFilters.topicId || problemFilters.subTopicId || problemFilters.difficulty);
   const problemsQueryKey = usingSubTopicFilter
-    ? ["contest-add-problems", "sub-topic", problemFilters.subTopicId]
+    ? ["contest-add-problems", "sub-topic", problemFilters.subTopicId, problemPage, problemLimit, searchProblem]
     : ["contest-add-problems", "list", problemPage, problemLimit, searchProblem, problemFilters.difficulty, problemFilters.topicId];
 
   const { data: problemsSource, isLoading: problemsLoading } = useQuery<ProblemsQueryResult>({
     queryKey: problemsQueryKey,
     queryFn: async () => {
       if (problemFilters.subTopicId) {
-        const res = await ProblemsApi.listBySubTopic(problemFilters.subTopicId);
-        return { mode: "subTopic", data: res.data || [] };
+        const subTopicParams: Record<string, any> = {};
+        if (searchProblem) {
+          subTopicParams.search = searchProblem;
+        }
+        if (problemFilters.difficulty) {
+          subTopicParams.difficulty = Number(problemFilters.difficulty);
+        }
+        const res = await ProblemsApi.listBySubTopic(problemFilters.subTopicId, problemPage, problemLimit, subTopicParams);
+        const payload = res.data;
+        let list: Problem[] = [];
+        let total = 0;
+        let page = problemPage;
+        let limit = problemLimit;
+        if (Array.isArray(payload)) {
+          list = payload;
+          total = payload.length;
+          page = 1;
+          limit = payload.length || problemLimit;
+        } else if (payload) {
+          list = payload.result ?? [];
+          total = payload.total ?? list.length;
+          page = payload.page ?? problemPage;
+          limit = payload.limit ?? problemLimit;
+        }
+        return { mode: "subTopic", data: { list, total, page, limit } };
       }
       const params: any = {};
       if (searchProblem) {
@@ -292,20 +323,12 @@ export default function ContestDetail() {
         serverPagination: true,
       };
     }
-    const rawList = problemsSource.data ?? [];
-    const filtered = rawList.filter((p) => {
-      if (problemFilters.topicId && p.topic_id !== problemFilters.topicId) return false;
-      if (problemFilters.difficulty && String(p.difficulty) !== problemFilters.difficulty) return false;
-      if (searchProblem && !p.name?.toLowerCase().includes(searchProblem.toLowerCase())) return false;
-      return true;
-    });
-    const start = (problemPage - 1) * problemLimit;
     return {
-      list: filtered.slice(start, start + problemLimit),
-      total: filtered.length,
-      currentPage: problemPage,
-      perPage: problemLimit,
-      serverPagination: false,
+      list: problemsSource.data.list,
+      total: problemsSource.data.total,
+      currentPage: problemsSource.data.page,
+      perPage: problemsSource.data.limit,
+      serverPagination: true,
     };
   }, [problemsSource, problemFilters, searchProblem, problemPage, problemLimit]);
 
@@ -783,7 +806,7 @@ export default function ContestDetail() {
                         Bộ lọc
                       </Button>
                     </div>
-                    {(problemFilters.difficulty || problemFilters.topicId || problemFilters.subTopicId) && (
+                    {hasProblemFilters && (
                       <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
                         {problemFilters.difficulty && (
                           <Badge variant="outline">Độ khó: {problemFilters.difficulty}</Badge>
@@ -804,10 +827,11 @@ export default function ContestDetail() {
                           className="px-2"
                           onClick={() => {
                             setProblemFilters({});
+                            setTempProblemFilters({});
                             setProblemPage(1);
                           }}
                         >
-                          Xóa lọc
+                          Đặt lại
                         </Button>
                       </div>
                     )}
@@ -999,8 +1023,16 @@ export default function ContestDetail() {
                   </div>
                 </div>
                 <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <Button variant="ghost" onClick={() => setTempProblemFilters({})}>
-                    Xóa lựa chọn
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setTempProblemFilters({});
+                      setProblemFilters({});
+                      setProblemPage(1);
+                      setProblemFilterDialogOpen(false);
+                    }}
+                  >
+                    Đặt lại
                   </Button>
                   <div className="flex w-full justify-end gap-2 sm:w-auto">
                     <Button variant="secondary" onClick={() => setProblemFilterDialogOpen(false)}>
