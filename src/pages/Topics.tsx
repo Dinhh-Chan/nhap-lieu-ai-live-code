@@ -105,12 +105,12 @@ export default function Topics() {
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Topics</h1>
-          <p className="text-muted-foreground">Manage learning topics</p>
+          <h1 className="text-3xl font-bold">Chủ đề</h1>
+          <p className="text-muted-foreground">Quản lý các chủ đề</p>
         </div>
         <div className="flex items-center gap-2">
           <Input
-            placeholder="Search by name or description"
+            placeholder="Tìm kiếm theo tên hoặc mô tả"
             value={search}
             onChange={(e) => { setPage(1); setSearch(e.target.value); }}
             className="w-72"

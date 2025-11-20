@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, RotateCcw } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -92,18 +92,24 @@ export default function SubTopics() {
 
   const handleDelete = (id: string) => { deleteMutation.mutate(id); };
 
+  const handleReset = () => {
+    setSearch("");
+    setTopicFilter(undefined);
+    setPage(1);
+  };
+
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Sub Topics</h1>
-          <p className="text-muted-foreground">Manage sub topics under main topics</p>
+          <h1 className="text-3xl font-bold">Chủ đề con</h1>
+          <p className="text-muted-foreground">Quản lý các chủ đề con</p>
         </div>
         
         <div className="flex items-center gap-2">
           <Select value={topicFilter} onValueChange={(v) => { setPage(1); setTopicFilter(v); }}>
             <SelectTrigger className="w-56">
-              <SelectValue placeholder="Filter by Topic" />
+              <SelectValue placeholder="Lọc theo chủ đề" />
             </SelectTrigger>
             <SelectContent>
               {topics.map((t) => (
@@ -112,11 +118,17 @@ export default function SubTopics() {
             </SelectContent>
           </Select>
           <Input
-            placeholder="Search sub topic"
+            placeholder="Tìm kiếm theo tên hoặc mô tả"
             value={search}
             onChange={(e) => { setPage(1); setSearch(e.target.value); }}
             className="w-64"
           />
+          {(search || topicFilter) && (
+            <Button variant="outline" onClick={handleReset}>
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Đặt lại
+            </Button>
+          )}
         </div>
 
         <Dialog open={open} onOpenChange={setOpen}>
