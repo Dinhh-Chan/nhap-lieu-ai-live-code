@@ -1,153 +1,220 @@
 import { Card } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, Code, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
+import type { StudentSubmission } from "@/types/student-submission";
+import { AlertCircle, CheckCircle, Clock, Code, HardDrive, Loader, XCircle } from "lucide-react";
 
 interface SubmissionListProps {
-  submissions?: {
-    problem_name: string;
-    submitted_at: string;
-    status: string;
-    language: string;
-  }[];
-  recentAC?: {
-    problem_name: string;
-    submitted_at: string;
-    status: string;
-    language: string;
-    code?: string;
-    execution_time_ms?: number;
-    memory_used_mb?: string;
-  }[];
+  submissions?: StudentSubmission[];
   onViewAllSubmissions?: () => void;
 }
 
-interface Submission {
-  title: string;
-  timeAgo: string;
-}
+const statusText: Record<string, string> = {
+  accepted: "Đã chấp nhận",
+  wrong_answer: "Sai đáp án",
+  time_limit_exceeded: "Quá thời gian",
+  runtime_error: "Lỗi runtime",
+  compilation_error: "Lỗi biên dịch",
+  pending: "Đang chờ",
+  running: "Đang chạy",
+};
 
-const sampleSubmissions: Submission[] = [
-  { title: "Two Sum", timeAgo: "2 days ago" },
-  { title: "Coupon Code Validator", timeAgo: "4 months ago" },
-  { title: "Maximum Depth of Binary Tree", timeAgo: "4 months ago" },
-  { title: "Symmetric Tree", timeAgo: "4 months ago" },
-  { title: "Same Tree", timeAgo: "4 months ago" },
-  { title: "Binary Tree Inorder Traversal", timeAgo: "4 months ago" },
-  { title: "Pascal's Triangle", timeAgo: "9 months ago" },
-  { title: "Merge Sorted Array", timeAgo: "9 months ago" },
-  { title: "Reverse Prefix of Word", timeAgo: "10 months ago" },
-  { title: "Sum of Digits of String After Convert", timeAgo: "10 months ago" },
-];
+const getStatusIcon = (status: string) => {
+  switch (status) {
+    case "accepted":
+      return <CheckCircle className="h-4 w-4 text-green-500" />;
+    case "wrong_answer":
+    case "time_limit_exceeded":
+    case "runtime_error":
+    case "compilation_error":
+      return <XCircle className="h-4 w-4 text-red-500" />;
+    case "pending":
+    case "running":
+      return <Loader className="h-4 w-4 text-yellow-500 animate-spin" />;
+    default:
+      return <AlertCircle className="h-4 w-4 text-muted-foreground" />;
+  }
+};
 
-export const SubmissionList = ({ submissions, recentAC, onViewAllSubmissions }: SubmissionListProps) => {
-  const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
-    if (diffInSeconds < 60) return "Just now";
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
-    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)} days ago`;
-    if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)} months ago`;
-    return `${Math.floor(diffInSeconds / 31536000)} years ago`;
-  };
+const getStatusBadge = (status: string) => {
+  switch (status) {
+    case "accepted":
+      return "bg-green-100 text-green-800";
+    case "wrong_answer":
+    case "runtime_error":
+    case "compilation_error":
+      return "bg-red-100 text-red-800";
+    case "time_limit_exceeded":
+      return "bg-orange-100 text-orange-800";
+    case "pending":
+    case "running":
+      return "bg-yellow-100 text-yellow-800";
+    default:
+      return "bg-gray-100 text-gray-800";
+  }
+};
+
+const formatDateTime = (dateString?: string) => {
+  if (!dateString) return "—";
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("vi-VN");
+};
+
+const formatTime = (ms?: number) => {
+  if (ms === undefined || ms === null) return "—";
+  if (ms < 1000) return `${ms} ms`;
+  return `${(ms / 1000).toFixed(2)} s`;
+};
+
+const formatMemory = (value?: string | number | null) => {
+  if (value === undefined || value === null) return "—";
+  const num = typeof value === "string" ? parseFloat(value) : value;
+  if (Number.isNaN(num)) return `${value}`;
+  if (num < 1) return `${(num * 1024).toFixed(0)} KB`;
+  return `${num.toFixed(2)} MB`;
+};
+
+export const SubmissionList = ({ submissions, onViewAllSubmissions }: SubmissionListProps) => {
+  const [selectedSubmission, setSelectedSubmission] = useState<StudentSubmission | null>(null);
+  const rows = submissions?.slice(0, 10) ?? [];
+
   return (
-    <Card className="p-6">
-      <Tabs defaultValue="recent" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="recent" className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4" />
-            Recent AC
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="recent" className="space-y-0">
-          <div className="flex justify-end mb-4">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={onViewAllSubmissions}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              View all submissions →
-            </Button>
-          </div>
-          {(recentAC && recentAC.length > 0 ? recentAC.slice(0, 10).map((sub, index) => (
-            <div
-              key={index}
-              className="flex items-center justify-between py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors px-2 -mx-2 rounded"
-            >
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-4 h-4 text-accent" />
-                <span className="text-sm text-foreground hover:text-accent transition-colors cursor-pointer">
-                  {sub.problem_name || "Unknown Problem"}
-                </span>
-                {sub.execution_time_ms && (
-                  <span className="text-xs text-muted-foreground">
-                    TLM: {sub.execution_time_ms}ms
-                  </span>
-                )}
-                {sub.memory_used_mb && (
-                  <span className="text-xs text-muted-foreground">
-                    MLM: {sub.memory_used_mb}MB
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">{formatTimeAgo(sub.submitted_at)}</span>
-                {sub.code && (
+    <Card className="p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-foreground">Bài nộp gần đây</h3>
+          <p className="text-sm text-muted-foreground">Hiển thị tối đa 10 bài nộp mới nhất</p>
+        </div>
+        {onViewAllSubmissions && (
+          <Button variant="outline" size="sm" onClick={onViewAllSubmissions}>
+            Xem tất cả
+          </Button>
+        )}
+      </div>
+
+      <div className="rounded border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Bài tập</TableHead>
+              <TableHead>Trạng thái</TableHead>
+              <TableHead>Điểm</TableHead>
+              <TableHead>Test</TableHead>
+              <TableHead>Thời gian</TableHead>
+              <TableHead>Bộ nhớ</TableHead>
+              <TableHead>Nộp lúc</TableHead>
+              <TableHead className="text-right">Mã nguồn</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((submission) => (
+              <TableRow key={submission._id}>
+                <TableCell>
+                  <div className="font-medium">{submission.problem?.name || "—"}</div>
+                  <div className="text-xs text-muted-foreground">{submission.problem_id}</div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    {getStatusIcon(submission.status)}
+                    <Badge className={getStatusBadge(submission.status)}>
+                      {statusText[submission.status] || submission.status}
+                    </Badge>
+                  </div>
+                </TableCell>
+                <TableCell className="font-semibold">{submission.score ?? "—"}</TableCell>
+                <TableCell className="text-sm">
+                  {submission.test_cases_passed}/{submission.total_test_cases}
+                </TableCell>
+                <TableCell className="text-sm">
+                  <div className="flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5" />
+                    {formatTime(submission.execution_time_ms)}
+                  </div>
+                </TableCell>
+                <TableCell className="text-sm">
+                  <div className="flex items-center gap-1">
+                    <HardDrive className="h-3.5 w-3.5" />
+                    {formatMemory(submission.memory_used_mb)}
+                  </div>
+                </TableCell>
+                <TableCell className="text-sm">{formatDateTime(submission.submitted_at)}</TableCell>
+                <TableCell className="text-right">
                   <Dialog>
                     <DialogTrigger asChild>
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        onClick={() => setSelectedSubmission(sub)}
+                        onClick={() => setSelectedSubmission(submission)}
                       >
-                        <Code className="h-4 w-4" />
+                        <Code className="h-4 w-4 mr-1" />
+                        Xem
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
-                        <DialogTitle>Code của bài: {sub.problem_name}</DialogTitle>
+                        <DialogTitle>
+                          {selectedSubmission?.problem?.name || selectedSubmission?.problem_id || "Bài nộp"}
+                        </DialogTitle>
                       </DialogHeader>
-                      <div className="mt-4">
-                        <div className="bg-muted p-4 rounded-lg">
-                          <pre className="text-sm overflow-x-auto">
-                            <code>{selectedSubmission?.code || sub.code}</code>
-                          </pre>
+                      <div className="space-y-3 text-sm">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-muted-foreground">Trạng thái</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              {getStatusIcon(selectedSubmission?.status || "")}
+                              <Badge className={getStatusBadge(selectedSubmission?.status || "")}>
+                                {statusText[selectedSubmission?.status || ""] || selectedSubmission?.status || "—"}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Điểm</p>
+                            <p className="font-semibold">{selectedSubmission?.score ?? "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Thời gian</p>
+                            <p>{formatTime(selectedSubmission?.execution_time_ms)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Bộ nhớ</p>
+                            <p>{formatMemory(selectedSubmission?.memory_used_mb)}</p>
+                          </div>
                         </div>
-                        <div className="mt-4 flex gap-4 text-sm text-muted-foreground">
-                          <span>Language: {sub.language}</span>
-                          {sub.execution_time_ms && <span>Time: {sub.execution_time_ms}ms</span>}
-                          {sub.memory_used_mb && <span>Memory: {sub.memory_used_mb}MB</span>}
+                        <div>
+                          <p className="text-muted-foreground mb-1">Mã nguồn</p>
+                          <div className="bg-muted border rounded p-3">
+                            <pre className="text-xs sm:text-sm font-mono whitespace-pre-wrap overflow-x-auto">
+                              {selectedSubmission?.code || "// Không có dữ liệu"}
+                            </pre>
+                          </div>
                         </div>
                       </div>
                     </DialogContent>
                   </Dialog>
-                )}
-              </div>
-            </div>
-          )) : sampleSubmissions.map((submission, index) => (
-            <div
-              key={index}
-              className="flex items-center justify-between py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors px-2 -mx-2 rounded"
-            >
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-4 h-4 text-accent" />
-                <span className="text-sm text-foreground hover:text-accent transition-colors cursor-pointer">
-                  {submission.title}
-                </span>
-              </div>
-              <span className="text-sm text-muted-foreground">{submission.timeAgo}</span>
-            </div>
-          )))}
-        </TabsContent>
-      </Tabs>
+                </TableCell>
+              </TableRow>
+            ))}
+            {rows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                  Hiện chưa có bài nộp nào cho người dùng này.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </Card>
   );
 };

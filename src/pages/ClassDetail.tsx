@@ -85,7 +85,7 @@ export default function ClassDetail() {
                         <TableRow>
                           <TableHead className="w-[36px]"></TableHead>
                           <TableHead>Họ tên</TableHead>
-                          <TableHead>Username</TableHead>
+                          <TableHead>Tên đăng nhập</TableHead>
                           <TableHead>Mã SV</TableHead>
                           <TableHead className="text-right">Chọn</TableHead>
                         </TableRow>
@@ -150,7 +150,7 @@ export default function ClassDetail() {
                       </TableCell>
                       <TableCell>{s.student_basic?.studentPtitCode || "—"}</TableCell>
                       <TableCell>{s.enrolled_at ? new Date(s.enrolled_at).toLocaleString("vi-VN") : "—"}</TableCell>
-                      <TableCell>{s.is_active ? "Active" : "Inactive"}</TableCell>
+                      <TableCell>{s.is_active ? "Hoạt động" : "Không hoạt động"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

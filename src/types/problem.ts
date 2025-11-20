@@ -40,6 +40,18 @@ export type ProblemListResponse = {
   };
 };
 
+export type ProblemPageData = {
+  page: number;
+  limit: number;
+  total: number;
+  result: Problem[];
+};
+
+export type ProblemsBySubTopicResponse = {
+  success: boolean;
+  data: Problem[] | ProblemPageData;
+};
+
 export type ProblemListParams = {
   page?: number;
   limit?: number;

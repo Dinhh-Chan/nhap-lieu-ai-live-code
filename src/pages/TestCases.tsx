@@ -177,12 +177,12 @@ export default function TestCases() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Problem</TableHead>
+              <TableHead>Bài tập</TableHead>
               <TableHead>Input</TableHead>
-              <TableHead>Expected Output</TableHead>
-              <TableHead>Order</TableHead>
-              <TableHead>Visibility</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>Kết quả mong đợi</TableHead>
+              <TableHead>Thứ tự</TableHead>
+              <TableHead>Hiển thị</TableHead>
+              <TableHead className="text-right">Hành động</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -194,9 +194,9 @@ export default function TestCases() {
                 <TableCell>{testCase.order_index}</TableCell>
                 <TableCell>
                   {testCase.is_public ? (
-                    <Badge>Public</Badge>
+                    <Badge>Công khai</Badge>
                   ) : (
-                    <Badge variant="outline">Hidden</Badge>
+                    <Badge variant="outline">Ẩn</Badge>
                   )}
                 </TableCell>
                 <TableCell className="text-right">

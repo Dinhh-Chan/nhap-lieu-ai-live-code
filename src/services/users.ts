@@ -2,6 +2,7 @@ import { Api, createAuthenticatedApiClient } from "@/services/api";
 import type { User, CreateUserDto, UpdateUserDto, UserListResponse, UserListParams } from "@/types/user";
 import type { UserStatisticsResponse } from "@/types/user-statistics";
 import type { SystemStatisticsResponse } from "@/types/system-statistics";
+import type { UserOverviewResponse } from "@/types/user-overview";
 
 const basePath = "/user";
 
@@ -86,6 +87,15 @@ export const UsersApi = {
       return res.data;
     } catch (error: any) {
       console.error("Error fetching system statistics:", error);
+      throw error;
+    }
+  },
+  getOverviewUser: async (userId: string): Promise<UserOverviewResponse> => {
+    try {
+      const res = await authenticatedApi.get<UserOverviewResponse>(`${basePath}/${userId}/overview-user`);
+      return res.data;
+    } catch (error: any) {
+      console.error("Error fetching user overview:", error);
       throw error;
     }
   },

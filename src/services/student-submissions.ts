@@ -1,5 +1,9 @@
-import { Api, createAuthenticatedApiClient } from "@/services/api";
-import type { StudentSubmission, StudentSubmissionsResponse, StudentSubmissionsParams } from "@/types/student-submission";
+import { createAuthenticatedApiClient } from "@/services/api";
+import type {
+  StudentSubmissionsResponse,
+  StudentSubmissionsParams,
+  StudentSubmissionsPageResponse,
+} from "@/types/student-submission";
 
 const basePath = "/student-submissions";
 
@@ -17,6 +21,18 @@ export const StudentSubmissionsApi = {
       return res.data;
     } catch (error: any) {
       console.error("Error fetching student submissions:", error);
+      throw error;
+    }
+  },
+
+  getPage: async (params: StudentSubmissionsParams = {}): Promise<StudentSubmissionsPageResponse> => {
+    try {
+      const res = await authenticatedApi.get<StudentSubmissionsPageResponse>(`${basePath}/page`, {
+        params,
+      });
+      return res.data;
+    } catch (error: any) {
+      console.error("Error fetching submissions page:", error);
       throw error;
     }
   },

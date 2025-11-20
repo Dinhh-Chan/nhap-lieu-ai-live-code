@@ -115,7 +115,7 @@ export default function Classes() {
                             <TableHeader>
                               <TableRow>
                                 <TableHead>Họ tên</TableHead>
-                                <TableHead>Username</TableHead>
+                                <TableHead>Tên đăng nhập</TableHead>
                                 <TableHead className="text-right">Chọn</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -228,7 +228,9 @@ export default function Classes() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={c.is_active ? "default" : "secondary"}>{c.is_active ? "Active" : "Inactive"}</Badge>
+                        <Badge variant={c.is_active ? "default" : "secondary"}>
+                          {c.is_active ? "Đang mở" : "Tạm dừng"}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">

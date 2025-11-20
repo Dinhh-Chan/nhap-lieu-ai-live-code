@@ -198,9 +198,13 @@ export default function Contests() {
                   </TableCell>
                   <TableCell>
                     {"is_active" in c ? (
-                      <Badge variant={c.is_active ? "default" : "secondary"}>{c.is_active ? "Active" : "Inactive"}</Badge>
+                      <Badge variant={c.is_active ? "default" : "secondary"}>
+                        {c.is_active ? "Đang mở" : "Tạm dừng"}
+                      </Badge>
                     ) : (
-                      <Badge variant={(c as any).is_public ? "default" : "secondary"}>{(c as any).is_public ? "Public" : "Private"}</Badge>
+                      <Badge variant={(c as any).is_public ? "default" : "secondary"}>
+                        {(c as any).is_public ? "Công khai" : "Riêng tư"}
+                      </Badge>
                     )}
                   </TableCell>
                   <TableCell className="text-right">

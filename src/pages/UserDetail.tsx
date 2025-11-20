@@ -1,22 +1,25 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Progress } from "@/components/ui/progress";
 import { UsersApi } from "@/services/users";
 import { StudentSubmissionsApi } from "@/services/student-submissions";
-import type { UserStatistics } from "@/types/user-statistics";
-import { ArrowLeft, User, Mail, Calendar, Shield, Hash, MapPin, FileText, BarChart3, Trophy, Target, Clock, Code2 } from "lucide-react";
-import { ProgressCircle } from "@/components/ProgressCircle";
-import { ActivityHeatmap } from "@/components/ActivityHeatmap";
+import { ArrowLeft, MessageSquare, Loader2 } from "lucide-react";
 import { SubmissionList } from "@/components/SubmissionList";
 import { ProfileSidebar } from "@/components/ProfileSidebar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import KMark from "@/components/KMark";
 
 export default function UserDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
 
   const { data: user, isLoading, error } = useQuery({
     queryKey: ["user", id],
@@ -24,7 +27,7 @@ export default function UserDetail() {
     enabled: !!id,
   });
 
-  const { data: statistics, isLoading: statsLoading } = useQuery({
+  const { data: statistics } = useQuery({
     queryKey: ["user-statistics", id],
     queryFn: () => UsersApi.getStatistics(id!),
     enabled: !!id,
@@ -36,38 +39,13 @@ export default function UserDetail() {
     enabled: !!id,
   });
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "—";
-    return new Date(dateString).toLocaleDateString("vi-VN", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
-
-  const getGenderColor = (gender: string) => {
-    switch (gender) {
-      case "Male":
-        return "bg-blue-100 text-blue-800";
-      case "Female":
-        return "bg-pink-100 text-pink-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case "Admin":
-        return "bg-red-100 text-red-800";
-      case "Teacher":
-        return "bg-purple-100 text-purple-800";
-      case "Student":
-        return "bg-green-100 text-green-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
+  const { data: overviewData, isLoading: isLoadingOverview, isError: isErrorOverview } = useQuery({
+    queryKey: ["user-overview", id],
+    queryFn: () => UsersApi.getOverviewUser(id!),
+    enabled: aiDialogOpen && !!id, // Chỉ gọi khi dialog mở và có id
+    retry: 1, // Retry 1 lần nếu thất bại
+    staleTime: 5 * 60 * 1000, // Cache 5 phút
+  });
 
   if (isLoading) {
     return (
@@ -102,6 +80,10 @@ export default function UserDetail() {
     );
   }
 
+  const handleOpenAiDialog = () => {
+    setAiDialogOpen(true);
+  };
+
   return (
     <div className="p-8">
       <div className="flex items-center gap-4 mb-6">
@@ -109,48 +91,23 @@ export default function UserDetail() {
           <ArrowLeft className="h-4 w-4 mr-2" />
           Quay lại
         </Button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-3xl font-bold">Profile - {user.fullname}</h1>
           <p className="text-muted-foreground">@{user.username}</p>
         </div>
+        <Button onClick={handleOpenAiDialog} className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700">
+          <MessageSquare className="h-4 w-4 mr-2" />
+          Chat với AI
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Main Content */}
         <div className="lg:col-span-3 space-y-6">
 
-          {/* Progress Circle */}
-          {statistics && (
-            <Card className="p-6">
-              <div className="flex items-center justify-center">
-                <ProgressCircle 
-                  solved={statistics.data.accepted_submissions}
-                  total={statistics.data.progress_stats.total}
-                  attempting={statistics.data.progress_stats.attempting}
-                />
-              </div>
-            </Card>
-          )}
-
-          {/* Activity Heatmap */}
-          <ActivityHeatmap 
-            activityData={statistics?.data.activity_data}
-            totalActiveDays={statistics?.data.total_active_days}
-            maxStreak={statistics?.data.max_streak}
-          />
-
           {/* Submission List */}
-          <SubmissionList 
-            submissions={statistics?.data.recent_submissions}
-            recentAC={submissions?.data?.filter(sub => sub.status === 'accepted').slice(0, 10).map(sub => ({
-              problem_name: sub.problem?.name || "Unknown Problem",
-              submitted_at: sub.submitted_at,
-              status: sub.status,
-              language: sub.language_id === 1 ? 'python' : sub.language_id === 2 ? 'cpp' : 'unknown',
-              code: sub.code,
-              execution_time_ms: sub.execution_time_ms,
-              memory_used_mb: sub.memory_used_mb
-            }))}
+          <SubmissionList
+            submissions={submissions?.data}
             onViewAllSubmissions={() => navigate(`/users/${id}/submissions`)}
           />
         </div>
@@ -160,6 +117,53 @@ export default function UserDetail() {
           <ProfileSidebar user={user} statistics={statistics?.data} />
         </div>
       </div>
+
+      {/* AI Analysis Dialog */}
+      <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Phân tích từ AI
+            </DialogTitle>
+            <DialogDescription className="text-base">
+              Phân tích chi tiết về hiệu suất và khả năng của người dùng
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto mt-4 pr-2">
+            {isLoadingOverview ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin mr-2 text-blue-500" />
+                <span className="text-muted-foreground mt-4">Đang phân tích thông tin...</span>
+                <p className="text-xs text-muted-foreground mt-2">Quá trình này có thể mất khoảng 10 giây</p>
+              </div>
+            ) : isErrorOverview ? (
+              <div className="text-center py-12">
+                <div className="text-red-500 font-semibold mb-2">Không thể tạo phân tích</div>
+                <p className="text-sm text-muted-foreground">Máy chủ đang bận. Vui lòng thử lại sau vài phút.</p>
+                <Button 
+                  onClick={() => setAiDialogOpen(false)} 
+                  variant="outline" 
+                  className="mt-4"
+                >
+                  Đóng
+                </Button>
+              </div>
+            ) : overviewData?.data?.layer3?.aiKmark ? (
+              <div className="bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 rounded-lg p-6 md:p-8 border border-slate-200 dark:border-slate-700 shadow-sm">
+                <KMark 
+                  content={overviewData.data.layer3.aiKmark.replace(/^```kmark\n/, "").replace(/\n```$/, "")} 
+                  className="w-full"
+                />
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="text-muted-foreground">Không có dữ liệu phân tích</div>
+                <p className="text-sm text-muted-foreground mt-2">Vui lòng thử lại sau</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

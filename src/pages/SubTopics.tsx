@@ -197,11 +197,11 @@ export default function SubTopics() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Parent Topic</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>Order</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>Tên chủ đề con</TableHead>
+              <TableHead>Chủ đề cha</TableHead>
+              <TableHead>Mô tả</TableHead>
+              <TableHead>Thứ tự</TableHead>
+              <TableHead className="text-right">Hành động</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

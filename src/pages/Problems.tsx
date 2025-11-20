@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil, Trash2, ArrowUpDown } from "lucide-react";
+import { Plus, Pencil, Trash2, ArrowUpDown, Filter } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -13,6 +13,8 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -30,23 +32,28 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ProblemsApi } from "@/services/problems";
-import type { Problem, ProblemListParams } from "@/types/problem";
+import type { Problem, ProblemListParams, ProblemListResponse, ProblemPageData } from "@/types/problem";
 import { TopicsApi, type Topic } from "@/services/topics";
 import { SubTopicsApi, type SubTopic } from "@/services/sub-topics";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TestCasesApi, type TestCase } from "@/services/test-cases";
 
+type ProblemFilterState = {
+  topicId?: string;
+  subTopicId?: string;
+  difficulty?: string;
+};
+
 export default function Problems() {
   const [open, setOpen] = useState(false);
   const [editingProblem, setEditingProblem] = useState<Problem | null>(null);
   const [search, setSearch] = useState("");
-  const [topicFilter, setTopicFilter] = useState<string | undefined>(undefined);
-  const [subTopicFilter, setSubTopicFilter] = useState<string | undefined>(undefined);
-  const [difficultyFilter, setDifficultyFilter] = useState<string | undefined>(undefined);
+  const [problemFilters, setProblemFilters] = useState<ProblemFilterState>({});
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+  const [tempProblemFilters, setTempProblemFilters] = useState<ProblemFilterState>({});
   const [selectedTopicId, setSelectedTopicId] = useState<string | undefined>(undefined);
   const [selectedSubTopicId, setSelectedSubTopicId] = useState<string | undefined>(undefined);
   const [rowEditId, setRowEditId] = useState<string | undefined>(undefined);
@@ -121,37 +128,124 @@ export default function Problems() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
   const queryClient = useQueryClient();
-  const { data: problemsData, isLoading, error } = useQuery({ 
-    queryKey: ["problems", page, pageSize, search, topicFilter, subTopicFilter, difficultyFilter, sortKey, sortDir], 
-    queryFn: () => {
-      if (search.trim()) {
-        return ProblemsApi.search(search.trim(), page, pageSize, difficultyFilter ? Number(difficultyFilter) : undefined);
-      }
-      const params: ProblemListParams = {
+type ProblemsQueryResult =
+  | { mode: "paged"; data: ProblemListResponse }
+  | { mode: "subTopicPaged"; data: ProblemPageData }
+  | { mode: "subTopicList"; data: Problem[] };
+
+  const usingSubTopicFilter = !!problemFilters.subTopicId;
+
+  const problemsQueryKey = usingSubTopicFilter
+    ? [
+        "problems",
+        "sub-topic",
+        problemFilters.subTopicId,
         page,
-        limit: pageSize
+        pageSize,
+        search,
+        problemFilters.topicId,
+        problemFilters.difficulty,
+        sortKey,
+        sortDir,
+      ]
+    : [
+        "problems",
+        "list",
+        page,
+        pageSize,
+        search,
+        problemFilters.topicId,
+        problemFilters.difficulty,
+        sortKey,
+        sortDir,
+      ];
+
+  const { data: problemsSource, isLoading, error } = useQuery<ProblemsQueryResult>({
+    queryKey: problemsQueryKey,
+    queryFn: async () => {
+      if (problemFilters.subTopicId) {
+        const params: Record<string, any> = {};
+        if (problemFilters.topicId) params.topic_id = problemFilters.topicId;
+        if (problemFilters.difficulty) params.difficulty = Number(problemFilters.difficulty);
+        if (search.trim()) {
+          params.filters = JSON.stringify([{ field: "name", operator: "CONTAIN", values: [search.trim()] }]);
+        }
+        if (sortKey) {
+          let apiSortField: string = sortKey;
+          if (sortKey === "topic") apiSortField = "topic.topic_name";
+          if (sortKey === "subTopic") apiSortField = "sub_topic.sub_topic_name";
+          if (sortKey === "tests") apiSortField = "number_of_tests";
+          params.sort = apiSortField;
+          params.order = sortDir;
+        }
+        const res = await ProblemsApi.listBySubTopic(problemFilters.subTopicId, page, pageSize, params);
+        const payload = res.data;
+        if (Array.isArray(payload)) {
+          return { mode: "subTopicList", data: payload };
+        }
+        return { mode: "subTopicPaged", data: payload as ProblemPageData };
+      }
+      const params: any = {
+        page,
+        limit: pageSize,
       };
-      
-      if (topicFilter) params.topic_id = topicFilter;
-      if (subTopicFilter) params.sub_topic_id = subTopicFilter;
-      if (difficultyFilter) params.difficulty = Number(difficultyFilter);
+      if (problemFilters.topicId) params.topic_id = problemFilters.topicId;
+      if (problemFilters.difficulty) params.difficulty = Number(problemFilters.difficulty);
+      if (search.trim()) {
+        params.filters = JSON.stringify([{ field: "name", operator: "CONTAIN", values: [search.trim()] }]);
+      }
       if (sortKey) {
-        // Chuyển đổi sortKey từ UI sang tên trường trong API
         let apiSortField: string = sortKey;
         if (sortKey === "topic") apiSortField = "topic.topic_name";
         if (sortKey === "subTopic") apiSortField = "sub_topic.sub_topic_name";
         if (sortKey === "tests") apiSortField = "number_of_tests";
-        
         params.sort = apiSortField;
         params.order = sortDir;
       }
-      
-      return ProblemsApi.list(page, pageSize, params);
-    }
+      return { mode: "paged", data: await ProblemsApi.list(page, pageSize, params) };
+    },
   });
   const { data: topicsData } = useQuery({ queryKey: ["topics"], queryFn: () => TopicsApi.list() });
   const { data: subTopicsData } = useQuery({ queryKey: ["sub-topics"], queryFn: () => SubTopicsApi.list() });
-  const problems = useMemo(() => (problemsData?.data?.result ? problemsData.data.result : []), [problemsData]);
+  const derivedProblems = useMemo(() => {
+    if (!problemsSource) {
+      return { list: [] as Problem[], total: 0, perPage: pageSize, currentPage: page };
+    }
+    if (problemsSource.mode === "paged") {
+      const payload = problemsSource.data?.data;
+      return {
+        list: payload?.result ?? [],
+        total: payload?.total ?? 0,
+        perPage: payload?.limit ?? pageSize,
+        currentPage: payload?.page ?? page,
+      };
+    }
+    if (problemsSource.mode === "subTopicPaged") {
+      const payload = problemsSource.data;
+      return {
+        list: payload?.result ?? [],
+        total: payload?.total ?? 0,
+        perPage: payload?.limit ?? pageSize,
+        currentPage: payload?.page ?? page,
+      };
+    }
+    const rawList = problemsSource.data ?? [];
+    const filtered = rawList.filter((problem) => {
+      if (problemFilters.topicId && problem.topic_id !== problemFilters.topicId) return false;
+      if (problemFilters.difficulty && String(problem.difficulty) !== problemFilters.difficulty) return false;
+      if (search.trim() && !problem.name?.toLowerCase().includes(search.trim().toLowerCase())) return false;
+      return true;
+    });
+    const start = (page - 1) * pageSize;
+    return {
+      list: filtered.slice(start, start + pageSize),
+      total: filtered.length,
+      perPage: pageSize,
+      currentPage: page,
+    };
+  }, [problemsSource, problemFilters, search, page, pageSize]);
+
+  const problems = derivedProblems.list;
   const topics = useMemo(() => (Array.isArray(topicsData) ? topicsData : []), [topicsData]);
   const subTopics = useMemo(() => (Array.isArray(subTopicsData) ? subTopicsData : []), [subTopicsData]);
   const getTopicName = (topicId?: string, problem?: Problem) => {
@@ -200,8 +294,9 @@ export default function Problems() {
   };
   // Dữ liệu đã được lọc và sắp xếp từ server
   const paged = useMemo(() => Array.isArray(problems) ? problems : [], [problems]);
-  const total = problemsData?.data?.total || 0;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const total = derivedProblems.total;
+  const perPage = derivedProblems.perPage || pageSize;
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
   const startPage = useMemo(() => Math.floor((page - 1) / 10) * 10 + 1, [page]);
   const endPage = useMemo(() => Math.min(totalPages, startPage + 9), [totalPages, startPage]);
 
@@ -248,70 +343,11 @@ export default function Problems() {
 
   return (
     <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold">Bài tập</h1>
           <p className="text-muted-foreground">Quản lý bài tập lập trình</p>
         </div>
-        
-        <div className="flex flex-wrap items-center gap-2">
-          <Select value={topicFilter} onValueChange={(v) => { setPage(1); setTopicFilter(v); }}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Lọc theo chủ đề" />
-            </SelectTrigger>
-            <SelectContent>
-              {topics.map((t) => (
-                <SelectItem key={t._id} value={t._id}>{t.topic_name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={subTopicFilter} onValueChange={(v) => { setPage(1); setSubTopicFilter(v); }}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Lọc theo chủ đề con" />
-            </SelectTrigger>
-            <SelectContent>
-              {subTopics.map((st) => (
-                <SelectItem key={st._id} value={st._id}>{st.sub_topic_name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={difficultyFilter} onValueChange={(v) => { setPage(1); setDifficultyFilter(v); }}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Độ khó" />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <SelectItem key={i+1} value={String(i + 1)}>{i + 1}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            placeholder="Tìm kiếm bài tập"
-            value={search}
-            onChange={(e) => { setPage(1); setSearch(e.target.value); }}
-            className="w-64"
-          />
-          <Button variant="outline" onClick={() => { setSearch(""); setTopicFilter(undefined); setSubTopicFilter(undefined); setDifficultyFilter(undefined); setPage(1); }}>
-            Đặt lại
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline">Cột</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {Object.keys(visibleCols).map((key) => (
-                <DropdownMenuCheckboxItem
-                  key={key}
-                  checked={(visibleCols as any)[key]}
-                  onCheckedChange={(v) => setVisibleCols((prev) => ({ ...prev, [key]: Boolean(v) }))}
-                >
-                  {key}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
         <Dialog open={open} onOpenChange={(v) => {
           setOpen(v);
           if (!v) return;
@@ -584,6 +620,176 @@ export default function Problems() {
           </DialogContent>
         </Dialog>
       </div>
+
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+        <Input
+          placeholder="Tìm kiếm bài tập"
+          value={search}
+          onChange={(e) => { setPage(1); setSearch(e.target.value); }}
+          className="w-full md:flex-1 lg:w-[480px]"
+        />
+        <Button
+          variant="outline"
+          onClick={() => {
+            setTempProblemFilters(problemFilters);
+            setFilterDialogOpen(true);
+          }}
+          className="md:w-auto"
+        >
+          <Filter className="h-4 w-4 mr-2" />
+          Bộ lọc
+        </Button>
+      </div>
+      {(problemFilters.topicId || problemFilters.subTopicId || problemFilters.difficulty) && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          {problemFilters.topicId && (
+            <Badge variant="outline">
+              Chủ đề: {topics.find((t) => t._id === problemFilters.topicId)?.topic_name || problemFilters.topicId}
+            </Badge>
+          )}
+          {problemFilters.subTopicId && (
+            <Badge variant="outline">
+              Chủ đề con: {subTopics.find((st) => st._id === problemFilters.subTopicId)?.sub_topic_name || problemFilters.subTopicId}
+            </Badge>
+          )}
+          {problemFilters.difficulty && (
+            <Badge variant="outline">Độ khó: {problemFilters.difficulty}</Badge>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="px-2"
+            onClick={() => {
+              setProblemFilters({});
+              setTempProblemFilters({});
+              setSearch("");
+              setPage(1);
+            }}
+          >
+            Xóa lọc
+          </Button>
+        </div>
+      )}
+
+        <Dialog
+          open={filterDialogOpen}
+          onOpenChange={(open) => {
+            setFilterDialogOpen(open);
+            if (!open) {
+              setTempProblemFilters(problemFilters);
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-[520px]">
+            <DialogHeader>
+              <DialogTitle>Lọc bài tập</DialogTitle>
+              <DialogDescription>Chọn tiêu chí để thu hẹp danh sách bài tập</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Chủ đề</Label>
+                <Select
+                  value={tempProblemFilters.topicId ?? "__all__"}
+                  onValueChange={(value) => {
+                    const nextTopicId = value === "__all__" ? undefined : value;
+                    setTempProblemFilters((prev) => {
+                      const selectedSubTopic = subTopics.find((st) => st._id === prev.subTopicId);
+                      const shouldClearSubTopic =
+                        !nextTopicId || (selectedSubTopic && selectedSubTopic.topic_id !== nextTopicId);
+                      return {
+                        ...prev,
+                        topicId: nextTopicId,
+                        subTopicId: shouldClearSubTopic ? undefined : prev.subTopicId,
+                      };
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Chọn chủ đề" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Tất cả chủ đề</SelectItem>
+                    {topics.map((topic) => (
+                      <SelectItem key={topic._id} value={topic._id}>
+                        {topic.topic_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Chủ đề con</Label>
+                <Select
+                  value={tempProblemFilters.subTopicId ?? "__all__"}
+                  onValueChange={(value) =>
+                    setTempProblemFilters((prev) => ({
+                      ...prev,
+                      subTopicId: value === "__all__" ? undefined : value,
+                    }))
+                  }
+                  disabled={subTopics.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Chọn chủ đề con" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Tất cả chủ đề con</SelectItem>
+                    {subTopics
+                      .filter((st) => !tempProblemFilters.topicId || st.topic_id === tempProblemFilters.topicId)
+                      .map((st) => (
+                        <SelectItem key={st._id} value={st._id}>
+                          {st.sub_topic_name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Độ khó</Label>
+                <Select
+                  value={tempProblemFilters.difficulty ?? "__all__"}
+                  onValueChange={(value) =>
+                    setTempProblemFilters((prev) => ({
+                      ...prev,
+                      difficulty: value === "__all__" ? undefined : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Chọn độ khó" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Tất cả độ khó</SelectItem>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <SelectItem key={i + 1} value={String(i + 1)}>
+                        {i + 1}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <Button variant="ghost" onClick={() => setTempProblemFilters({})}>
+                Xóa lựa chọn
+              </Button>
+              <div className="flex w-full justify-end gap-2 sm:w-auto">
+                <Button variant="secondary" onClick={() => setFilterDialogOpen(false)}>
+                  Hủy
+                </Button>
+                <Button
+                  onClick={() => {
+                    setProblemFilters(tempProblemFilters);
+                    setPage(1);
+                    setFilterDialogOpen(false);
+                  }}
+                >
+                  Áp dụng
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
       {error ? (
         <div className="border rounded-lg p-8 text-center">

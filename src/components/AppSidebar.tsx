@@ -225,38 +225,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* KHÁC Section */}
-        <SidebarGroup>
-          <SidebarGroupLabel>KHÁC</SidebarGroupLabel>
-          <Collapsible open={isStatisticsOpen} onOpenChange={setIsStatisticsOpen}>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <CollapsibleTrigger asChild>
-                  <SidebarMenuButton>
-                    <BarChart3 className="h-4 w-4" />
-                    <span>Thống kê</span>
-                    {isStatisticsOpen ? (
-                      <ChevronDown className="ml-auto h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="ml-auto h-4 w-4" />
-                    )}
-                  </SidebarMenuButton>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <SidebarMenu>
-                    {/* Có thể thêm các mục con của Thống kê ở đây nếu cần */}
-                  </SidebarMenu>
-                </CollapsibleContent>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton>
-                  <MessageSquare className="h-4 w-4" />
-                  <span>Phản hồi</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </Collapsible>
-        </SidebarGroup>
+
       </SidebarContent>
       
       <div className="p-2 border-t border-border space-y-2">

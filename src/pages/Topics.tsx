@@ -183,11 +183,11 @@ export default function Topics() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>Learning Objective</TableHead>
-              <TableHead>Order</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>Tên chủ đề</TableHead>
+              <TableHead>Mô tả</TableHead>
+              <TableHead>Mục tiêu học tập</TableHead>
+              <TableHead>Thứ tự</TableHead>
+              <TableHead className="text-right">Hành động</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

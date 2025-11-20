@@ -261,7 +261,7 @@ export default function Courses() {
                         </TableCell>
                         <TableCell>
                           <Badge variant={course.is_active ? "default" : "secondary"}>
-                            {course.is_active ? "Active" : "Inactive"}
+                            {course.is_active ? "Đang mở" : "Tạm dừng"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
@@ -374,7 +374,7 @@ export default function Courses() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Họ tên</TableHead>
-                          <TableHead>Username</TableHead>
+                          <TableHead>Tên đăng nhập</TableHead>
                           <TableHead>Email</TableHead>
                           <TableHead>Bài tập hoàn thành</TableHead>
                           <TableHead>Ngày tham gia</TableHead>

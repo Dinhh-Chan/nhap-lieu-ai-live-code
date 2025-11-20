@@ -11,6 +11,7 @@ import Problems from "./pages/Problems";
 import Users from "./pages/Users";
 import UserDetail from "./pages/UserDetail";
 import StudentSubmissions from "./pages/StudentSubmissions";
+import SubmissionHistory from "./pages/SubmissionHistory";
 import Classes from "./pages/Classes";
 import ClassDetail from "./pages/ClassDetail";
 import Contests from "./pages/Contests";
@@ -39,6 +40,7 @@ const App = () => (
                 <Route path="/sub-topics" element={<SubTopics />} />
                 <Route path="/problems" element={<Problems />} />
                 <Route path="/users" element={<Users />} />
+                <Route path="/student-submissions" element={<SubmissionHistory />} />
                 <Route path="/users/:id/submissions" element={<StudentSubmissions />} />
                 <Route path="/users/:id" element={<UserDetail />} />
                 <Route path="/courses" element={<Courses />} />

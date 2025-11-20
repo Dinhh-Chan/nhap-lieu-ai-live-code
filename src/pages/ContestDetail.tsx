@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Users, Code, Calendar, ListOrdered, CheckCircle2, XCircle, Edit } from "lucide-react";
+import { ArrowLeft, Users, Code, Calendar, ListOrdered, CheckCircle2, XCircle, Edit, AlertCircle, Loader, CheckCircle, XOctagon, Filter } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ContestsApi, ContestUsersApi, ContestProblemsApi, ContestSubmissionsApi } from "@/services/contests";
 import { ProblemsApi } from "@/services/problems";
 import type { ContestDetailData } from "@/types/contest";
+import type { Problem, ProblemListResponse } from "@/types/problem";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,6 +21,66 @@ import { Checkbox } from "@/components/ui/checkbox";
 import KMark from "@/components/KMark";
 import { ClassesApi } from "@/services/classes";
 import { ClassStudentsApi } from "@/services/class-students";
+import { TopicsApi } from "@/services/topics";
+import type { Topic } from "@/services/topics";
+import { SubTopicsApi } from "@/services/sub-topics";
+import type { SubTopic } from "@/services/sub-topics";
+
+const submissionStatusText: Record<string, string> = {
+  accepted: "Đã chấp nhận",
+  wrong_answer: "Sai đáp án",
+  time_limit_exceeded: "Quá thời gian",
+  runtime_error: "Lỗi runtime",
+  compilation_error: "Lỗi biên dịch",
+  pending: "Đang chờ",
+  running: "Đang chạy",
+};
+
+const getSubmissionStatusBadge = (status: string) => {
+  switch (status) {
+    case "accepted":
+      return "bg-green-100 text-green-800";
+    case "wrong_answer":
+    case "runtime_error":
+    case "compilation_error":
+      return "bg-red-100 text-red-800";
+    case "time_limit_exceeded":
+      return "bg-orange-100 text-orange-800";
+    case "pending":
+    case "running":
+      return "bg-yellow-100 text-yellow-800";
+    default:
+      return "bg-gray-100 text-gray-800";
+  }
+};
+
+const getSubmissionStatusIcon = (status: string) => {
+  switch (status) {
+    case "accepted":
+      return <CheckCircle className="h-4 w-4 text-green-500" />;
+    case "wrong_answer":
+    case "runtime_error":
+    case "compilation_error":
+      return <XOctagon className="h-4 w-4 text-red-500" />;
+    case "time_limit_exceeded":
+      return <AlertCircle className="h-4 w-4 text-orange-500" />;
+    case "pending":
+    case "running":
+      return <Loader className="h-4 w-4 text-yellow-500 animate-spin" />;
+    default:
+      return <AlertCircle className="h-4 w-4 text-muted-foreground" />;
+  }
+};
+
+type ProblemFilterState = {
+  topicId?: string;
+  subTopicId?: string;
+  difficulty?: string;
+};
+
+type ProblemsQueryResult =
+  | { mode: "paged"; data: ProblemListResponse }
+  | { mode: "subTopic"; data: Problem[] };
 
 type MockUser = { _id: string; username: string; fullname: string };
 const mockUsers: MockUser[] = [
@@ -54,7 +115,9 @@ export default function ContestDetail() {
   const [classStudentLimit] = useState(10);
   const [problemPage, setProblemPage] = useState(1);
   const [problemLimit, setProblemLimit] = useState(7);
-  const [difficultyFilter, setDifficultyFilter] = useState<string | undefined>(undefined);
+  const [problemFilters, setProblemFilters] = useState<ProblemFilterState>({});
+  const [problemFilterDialogOpen, setProblemFilterDialogOpen] = useState(false);
+  const [tempProblemFilters, setTempProblemFilters] = useState<ProblemFilterState>({});
   const [selectedProblemIds, setSelectedProblemIds] = useState<string[]>([]);
   const [openEditContest, setOpenEditContest] = useState(false);
   const [editForm, setEditForm] = useState<any>({
@@ -93,6 +156,20 @@ export default function ContestDetail() {
   });
 
   const classes = classesData?.data || [];
+
+  const { data: topicsData } = useQuery<Topic[]>({
+    queryKey: ["topics-many"],
+    queryFn: () => TopicsApi.list(),
+    enabled: openAddProblem || problemFilterDialogOpen,
+  });
+  const topics: Topic[] = topicsData || [];
+
+  const { data: subTopicsData } = useQuery<SubTopic[]>({
+    queryKey: ["sub-topics-many"],
+    queryFn: () => SubTopicsApi.list(),
+    enabled: openAddProblem || problemFilterDialogOpen,
+  });
+  const subTopics: SubTopic[] = subTopicsData || [];
 
   const { data: classStudentsData, isLoading: classStudentsLoading } = useQuery({
     queryKey: ["class-students", selectedClassId],
@@ -173,25 +250,71 @@ export default function ContestDetail() {
     updateContest(payload);
   };
 
-  const { data: problemsPage, isLoading: problemsLoading } = useQuery({
-    queryKey: ["contest-add-problems", problemPage, problemLimit, searchProblem, difficultyFilter, openAddProblem],
-    queryFn: () => {
+  const usingSubTopicFilter = !!problemFilters.subTopicId;
+  const problemsQueryKey = usingSubTopicFilter
+    ? ["contest-add-problems", "sub-topic", problemFilters.subTopicId]
+    : ["contest-add-problems", "list", problemPage, problemLimit, searchProblem, problemFilters.difficulty, problemFilters.topicId];
+
+  const { data: problemsSource, isLoading: problemsLoading } = useQuery<ProblemsQueryResult>({
+    queryKey: problemsQueryKey,
+    queryFn: async () => {
+      if (problemFilters.subTopicId) {
+        const res = await ProblemsApi.listBySubTopic(problemFilters.subTopicId);
+        return { mode: "subTopic", data: res.data || [] };
+      }
       const params: any = {};
       if (searchProblem) {
-        const filters: any[] = [];
-        filters.push({ field: "name", operator: "CONTAIN", values: [searchProblem] });
+        const filters: any[] = [{ field: "name", operator: "CONTAIN", values: [searchProblem] }];
         params.filters = JSON.stringify(filters);
       }
-      if (difficultyFilter) {
-        params.difficulty = Number(difficultyFilter);
+      if (problemFilters.difficulty) {
+        params.difficulty = Number(problemFilters.difficulty);
       }
-      return ProblemsApi.list(problemPage, problemLimit, params);
+      if (problemFilters.topicId) {
+        params.topic_id = problemFilters.topicId;
+      }
+      return { mode: "paged", data: await ProblemsApi.list(problemPage, problemLimit, params) };
     },
     enabled: openAddProblem,
   });
-  const problemResults: any[] = problemsPage?.data?.result ?? [];
-  const problemTotal: number = problemsPage?.data?.total ?? 0;
-  const hasNextProblems = problemPage * problemLimit < problemTotal;
+
+  const derivedProblems = useMemo(() => {
+    if (!problemsSource) {
+      return { list: [] as Problem[], total: 0, currentPage: problemPage, perPage: problemLimit, serverPagination: false };
+    }
+    if (problemsSource.mode === "paged") {
+      const payload = problemsSource.data?.data;
+      return {
+        list: payload?.result ?? [],
+        total: payload?.total ?? 0,
+        currentPage: payload?.page ?? problemPage,
+        perPage: payload?.limit ?? problemLimit,
+        serverPagination: true,
+      };
+    }
+    const rawList = problemsSource.data ?? [];
+    const filtered = rawList.filter((p) => {
+      if (problemFilters.topicId && p.topic_id !== problemFilters.topicId) return false;
+      if (problemFilters.difficulty && String(p.difficulty) !== problemFilters.difficulty) return false;
+      if (searchProblem && !p.name?.toLowerCase().includes(searchProblem.toLowerCase())) return false;
+      return true;
+    });
+    const start = (problemPage - 1) * problemLimit;
+    return {
+      list: filtered.slice(start, start + problemLimit),
+      total: filtered.length,
+      currentPage: problemPage,
+      perPage: problemLimit,
+      serverPagination: false,
+    };
+  }, [problemsSource, problemFilters, searchProblem, problemPage, problemLimit]);
+
+  const problemResults = derivedProblems.list;
+  const problemTotal = derivedProblems.total;
+  const currentProblemPage = derivedProblems.currentPage;
+  const problemsPerPage = derivedProblems.perPage;
+  const hasNextProblems = currentProblemPage * problemsPerPage < problemTotal;
+  const totalProblemPages = Math.max(1, Math.ceil(problemTotal / Math.max(1, problemsPerPage)));
 
   const { mutate: addProblemsToContest, isPending: addingProblems } = useMutation({
     mutationFn: (payload: { problem_id: string; order_index: number; score: number; is_visible: boolean }[]) =>
@@ -339,7 +462,7 @@ export default function ContestDetail() {
                                 <TableRow>
                                   <TableHead className="w-[36px]"></TableHead>
                                   <TableHead>Họ tên</TableHead>
-                                  <TableHead>Username</TableHead>
+                                  <TableHead>Tên đăng nhập</TableHead>
                                   <TableHead>Trạng thái</TableHead>
                                 </TableRow>
                               </TableHeader>
@@ -436,7 +559,7 @@ export default function ContestDetail() {
                               <TableRow>
                                 <TableHead className="w-[36px]"></TableHead>
                                 <TableHead>Họ tên</TableHead>
-                                <TableHead>Username</TableHead>
+                                <TableHead>Tên đăng nhập</TableHead>
                                 <TableHead className="text-right">Chọn</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -510,7 +633,7 @@ export default function ContestDetail() {
                             <TableHeader>
                               <TableRow>
                                 <TableHead>Họ tên</TableHead>
-                                <TableHead>Username</TableHead>
+                                <TableHead>Tên đăng nhập</TableHead>
                                 <TableHead>Trạng thái</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -641,36 +764,68 @@ export default function ContestDetail() {
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      <Input placeholder="Tìm kiếm..." value={searchProblem} onChange={(e)=> { setProblemPage(1); setSearchProblem(e.target.value); }} />
-                      <Select value={difficultyFilter ?? "__all__"} onValueChange={(v)=> { setProblemPage(1); setDifficultyFilter(v === "__all__" ? undefined : v); }}>
-                        <SelectTrigger><SelectValue placeholder="Độ khó" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">Tất cả độ khó</SelectItem>
-                          <SelectItem value="1">1 - Easy</SelectItem>
-                          <SelectItem value="2">2</SelectItem>
-                          <SelectItem value="3">3 - Medium</SelectItem>
-                          <SelectItem value="4">4</SelectItem>
-                          <SelectItem value="5">5 - Hard</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <div />
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                      <Input
+                        placeholder="Tìm kiếm bài tập..."
+                        value={searchProblem}
+                        onChange={(e)=> { setProblemPage(1); setSearchProblem(e.target.value); }}
+                        className="md:flex-1"
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setTempProblemFilters(problemFilters);
+                          setProblemFilterDialogOpen(true);
+                        }}
+                        className="md:w-auto"
+                      >
+                        <Filter className="h-4 w-4 mr-2" />
+                        Bộ lọc
+                      </Button>
                     </div>
+                    {(problemFilters.difficulty || problemFilters.topicId || problemFilters.subTopicId) && (
+                      <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                        {problemFilters.difficulty && (
+                          <Badge variant="outline">Độ khó: {problemFilters.difficulty}</Badge>
+                        )}
+                        {problemFilters.topicId && (
+                          <Badge variant="outline">
+                            Chủ đề: {topics.find((t) => t._id === problemFilters.topicId)?.topic_name || problemFilters.topicId}
+                          </Badge>
+                        )}
+                        {problemFilters.subTopicId && (
+                          <Badge variant="outline">
+                            Chủ đề con: {subTopics.find((s) => s._id === problemFilters.subTopicId)?.sub_topic_name || problemFilters.subTopicId}
+                          </Badge>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="px-2"
+                          onClick={() => {
+                            setProblemFilters({});
+                            setProblemPage(1);
+                          }}
+                        >
+                          Xóa lọc
+                        </Button>
+                      </div>
+                    )}
                     <div className="rounded border overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
                             <TableHead className="w-[40px] min-w-[40px]"></TableHead>
                             <TableHead className="min-w-[200px]">Tên bài</TableHead>
-                            <TableHead className="min-w-[150px]">Topic</TableHead>
-                            <TableHead className="min-w-[120px]">Sub Topic</TableHead>
+                            <TableHead className="min-w-[150px]">Chủ đề</TableHead>
+                            <TableHead className="min-w-[120px]">Chủ đề con</TableHead>
                             <TableHead className="w-[80px] min-w-[80px]">Độ khó</TableHead>
-                            <TableHead className="w-[80px] min-w-[80px]">Tests</TableHead>
+                            <TableHead className="w-[80px] min-w-[80px]">Số test</TableHead>
                             <TableHead className="text-right min-w-[120px]">Hành động</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {problemResults.map((p: any) => (
+                          {problemResults.map((p) => (
                             <TableRow key={p._id}>
                               <TableCell className="w-[40px] min-w-[40px]">
                                 <Checkbox
@@ -710,11 +865,13 @@ export default function ContestDetail() {
                       </Table>
                     </div>
                     <div className="flex items-center justify-between">
-                      <div className="text-sm text-muted-foreground">Trang {problemsPage?.data?.page || problemPage}</div>
+                      <div className="text-sm text-muted-foreground">
+                        Trang {problemTotal > 0 ? currentProblemPage : 1} / {totalProblemPages}
+                      </div>
                       <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" disabled={problemPage<=1 || problemsLoading} onClick={()=> setProblemPage(p=> Math.max(1, p-1))}>Trước</Button>
                         <Button variant="outline" size="sm" disabled={problemsLoading || !hasNextProblems} onClick={()=> setProblemPage(p=> p+1)}>Sau</Button>
-                        <Select value={String(problemLimit)} onValueChange={(v)=> setProblemLimit(Number(v))}>
+                        <Select value={String(problemLimit)} onValueChange={(v)=> { setProblemLimit(Number(v)); setProblemPage(1); }}>
                           <SelectTrigger className="w-[96px]"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="7">7 / trang</SelectItem>
@@ -745,6 +902,123 @@ export default function ContestDetail() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+            <Dialog open={problemFilterDialogOpen} onOpenChange={(open) => {
+              setProblemFilterDialogOpen(open);
+              if (!open) {
+                setTempProblemFilters(problemFilters);
+              }
+            }}>
+              <DialogContent className="sm:max-w-[520px]">
+                <DialogHeader>
+                  <DialogTitle>Lọc bài tập</DialogTitle>
+                  <DialogDescription>Chọn tiêu chí để thu hẹp danh sách bài tập</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Chủ đề</Label>
+                    <Select
+                      value={tempProblemFilters.topicId ?? "__all__"}
+                      onValueChange={(value) => {
+                        const nextTopicId = value === "__all__" ? undefined : value;
+                        setTempProblemFilters((prev) => {
+                          const selectedSubTopic = subTopics.find((st) => st._id === prev.subTopicId);
+                          const shouldClearSubTopic =
+                            !nextTopicId ||
+                            (selectedSubTopic && selectedSubTopic.topic_id !== nextTopicId);
+                          return {
+                            ...prev,
+                            topicId: nextTopicId,
+                            subTopicId: shouldClearSubTopic ? undefined : prev.subTopicId,
+                          };
+                        });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Chọn chủ đề" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">Tất cả chủ đề</SelectItem>
+                        {topics.map((topic) => (
+                          <SelectItem key={topic._id} value={topic._id}>
+                            {topic.topic_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Chủ đề con</Label>
+                    <Select
+                      value={tempProblemFilters.subTopicId ?? "__all__"}
+                      onValueChange={(value) =>
+                        setTempProblemFilters((prev) => ({
+                          ...prev,
+                          subTopicId: value === "__all__" ? undefined : value,
+                        }))
+                      }
+                      disabled={subTopics.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Chọn chủ đề con" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">Tất cả chủ đề con</SelectItem>
+                        {subTopics
+                          .filter((st) => !tempProblemFilters.topicId || st.topic_id === tempProblemFilters.topicId)
+                          .map((st) => (
+                            <SelectItem key={st._id} value={st._id}>
+                              {st.sub_topic_name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Độ khó</Label>
+                    <Select
+                      value={tempProblemFilters.difficulty ?? "__all__"}
+                      onValueChange={(value) =>
+                        setTempProblemFilters((prev) => ({
+                          ...prev,
+                          difficulty: value === "__all__" ? undefined : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Chọn độ khó" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">Tất cả độ khó</SelectItem>
+                        <SelectItem value="1">1 - Dễ</SelectItem>
+                        <SelectItem value="2">2</SelectItem>
+                        <SelectItem value="3">3 - Trung bình</SelectItem>
+                        <SelectItem value="4">4</SelectItem>
+                        <SelectItem value="5">5 - Khó</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <Button variant="ghost" onClick={() => setTempProblemFilters({})}>
+                    Xóa lựa chọn
+                  </Button>
+                  <div className="flex w-full justify-end gap-2 sm:w-auto">
+                    <Button variant="secondary" onClick={() => setProblemFilterDialogOpen(false)}>
+                      Hủy
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setProblemFilters(tempProblemFilters);
+                        setProblemPage(1);
+                        setProblemFilterDialogOpen(false);
+                      }}
+                    >
+                      Áp dụng
+                    </Button>
+                  </div>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
               <Dialog open={!!selectedProblemDetail} onOpenChange={(open) => !open && setSelectedProblemDetail(null)}>
                 <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
@@ -828,8 +1102,8 @@ export default function ContestDetail() {
                       <TableHead>Bài</TableHead>
                       <TableHead>Trạng thái</TableHead>
                       <TableHead>Điểm</TableHead>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Memory</TableHead>
+                      <TableHead>Thời gian</TableHead>
+                      <TableHead>Bộ nhớ</TableHead>
                       <TableHead>Nộp lúc</TableHead>
                       <TableHead className="text-right">Mã nguồn</TableHead>
                     </TableRow>
@@ -842,7 +1116,14 @@ export default function ContestDetail() {
                           <div className="text-xs text-muted-foreground">@{s.user?.username || s.student?.username || "—"}</div>
                         </TableCell>
                         <TableCell>{s.problem?.name || s.problem_id}</TableCell>
-                        <TableCell>{s.status}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {getSubmissionStatusIcon(s.status)}
+                            <Badge className={getSubmissionStatusBadge(s.status)}>
+                              {submissionStatusText[s.status] || s.status}
+                            </Badge>
+                          </div>
+                        </TableCell>
                         <TableCell>{s.score}</TableCell>
                         <TableCell>{s.execution_time_ms} ms</TableCell>
                         <TableCell>{s.memory_used_mb} MB</TableCell>
@@ -901,7 +1182,7 @@ export default function ContestDetail() {
                       <TableRow key={cp._id}>
                         <TableCell>{cp.problem?.name || "—"}</TableCell>
                         <TableCell>{cp.score}</TableCell>
-                        <TableCell>{cp.is_visible ? "Yes" : "No"}</TableCell>
+                        <TableCell>{cp.is_visible ? "Có" : "Không"}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -926,7 +1207,7 @@ export default function ContestDetail() {
                           <div className="font-medium">{cu.user?.fullname || "—"}</div>
                           <div className="text-xs text-muted-foreground">@{cu.user?.username || "—"}</div>
                         </TableCell>
-                        <TableCell>{cu.is_manager ? "Manager" : "Participant"}</TableCell>
+                        <TableCell>{cu.is_manager ? "Quản trị" : "Thí sinh"}</TableCell>
                         <TableCell>{cu.status}</TableCell>
                       </TableRow>
                     ))}
@@ -940,13 +1221,13 @@ export default function ContestDetail() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Rank</TableHead>
-                      <TableHead>Team/User</TableHead>
+                      <TableHead>Hạng</TableHead>
+                      <TableHead>Đội/Học sinh</TableHead>
                       {headerProblems.map((p: any, idx: number) => (
                         <TableHead key={idx}>{String.fromCharCode(65 + idx)}</TableHead>
                       ))}
-                      <TableHead>Score</TableHead>
-                      <TableHead>AC</TableHead>
+                      <TableHead>Điểm tổng</TableHead>
+                      <TableHead>Số AC</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

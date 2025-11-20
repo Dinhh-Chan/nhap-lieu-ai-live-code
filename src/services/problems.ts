@@ -1,5 +1,12 @@
 import { Api, createAuthenticatedApiClient } from "@/services/api";
-import type { Problem, CreateProblemDto, UpdateProblemDto, ProblemListResponse, ProblemListParams } from "@/types/problem";
+import type {
+  Problem,
+  CreateProblemDto,
+  UpdateProblemDto,
+  ProblemListResponse,
+  ProblemListParams,
+  ProblemsBySubTopicResponse,
+} from "@/types/problem";
 
 const basePath = "/problems";
 
@@ -19,6 +26,27 @@ export const ProblemsApi = {
       return res.data;
     } catch (error: any) {
       console.error("Error fetching problems:", error);
+      throw error;
+    }
+  },
+  listBySubTopic: async (
+    subTopicId: string,
+    page: number = 1,
+    limit: number = 10,
+    params: Record<string, any> = {},
+  ): Promise<ProblemsBySubTopicResponse> => {
+    try {
+      const queryParams = {
+        page,
+        limit,
+        ...params,
+      };
+      const res = await authenticatedApi.get<ProblemsBySubTopicResponse>(`${basePath}/by-sub-topic/${subTopicId}`, {
+        params: queryParams,
+      });
+      return res.data;
+    } catch (error: any) {
+      console.error("Error fetching problems by sub-topic:", error);
       throw error;
     }
   },
