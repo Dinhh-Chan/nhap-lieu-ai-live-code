@@ -56,6 +56,48 @@ export const ProblemsApi = {
     const res = await authenticatedApi.get<ProblemListResponse>(`${basePath}/search`, { params });
     return res.data;
   },
+  listPage: async (
+    page: number = 1,
+    limit: number = 10,
+    options: {
+      filters?: Array<{ field: string; operator: string; values: any[] }>;
+      sort?: Record<string, number>;
+      topic_id?: string;
+      difficulty?: number;
+    } = {}
+  ): Promise<ProblemListResponse> => {
+    const queryParams: Record<string, any> = {
+      page,
+      limit,
+    };
+    
+    // Add filters as array parameter - axios will serialize filters[] correctly
+    if (options.filters && options.filters.length > 0) {
+      // Format: filters[]={"field":"name","operator":"contain","values":["Thêm"]}
+      queryParams["filters[]"] = options.filters.map(f => JSON.stringify(f));
+    }
+    
+    // Add sort as JSON string
+    if (options.sort && Object.keys(options.sort).length > 0) {
+      queryParams.sort = JSON.stringify(options.sort);
+    }
+    
+    // Add other filters
+    if (options.topic_id) {
+      queryParams.topic_id = options.topic_id;
+    }
+    if (options.difficulty !== undefined) {
+      queryParams.difficulty = options.difficulty;
+    }
+    
+    try {
+      const res = await authenticatedApi.get<ProblemListResponse>(`${basePath}/page`, { params: queryParams });
+      return res.data;
+    } catch (error: any) {
+      console.error("Error fetching problems page:", error);
+      throw error;
+    }
+  },
   getById: async (id: string): Promise<Problem> => {
     const res = await authenticatedApi.get<{success: boolean; data: Problem}>(`${basePath}/${id}`);
     return res.data.data;

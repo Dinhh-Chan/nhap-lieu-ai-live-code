@@ -185,15 +185,40 @@ type ProblemsQueryResult =
         }
         return { mode: "subTopicPaged", data: payload as ProblemPageData };
       }
+      // Use new /problems/page API when there's a search query
+      if (search.trim()) {
+        const filters: Array<{ field: string; operator: string; values: any[] }> = [
+          { field: "name", operator: "contain", values: [search.trim()] }
+        ];
+        const sort: Record<string, number> = {};
+        if (sortKey) {
+          let apiSortField: string = sortKey;
+          if (sortKey === "topic") apiSortField = "topic.topic_name";
+          if (sortKey === "subTopic") apiSortField = "sub_topic.sub_topic_name";
+          if (sortKey === "tests") apiSortField = "number_of_tests";
+          if (sortKey === "difficulty") apiSortField = "difficulty";
+          if (sortKey === "name") apiSortField = "name";
+          sort[apiSortField] = sortDir === "asc" ? 1 : -1;
+        } else {
+          // Default sort by difficulty ascending
+          sort.difficulty = 1;
+        }
+        const options: any = {
+          filters,
+          sort,
+        };
+        if (problemFilters.topicId) options.topic_id = problemFilters.topicId;
+        if (problemFilters.difficulty) options.difficulty = Number(problemFilters.difficulty);
+        return { mode: "paged", data: await ProblemsApi.listPage(page, pageSize, options) };
+      }
+      
+      // Use old API when no search
       const params: any = {
         page,
         limit: pageSize,
       };
       if (problemFilters.topicId) params.topic_id = problemFilters.topicId;
       if (problemFilters.difficulty) params.difficulty = Number(problemFilters.difficulty);
-      if (search.trim()) {
-        params.filters = JSON.stringify([{ field: "name", operator: "CONTAIN", values: [search.trim()] }]);
-      }
       if (sortKey) {
         let apiSortField: string = sortKey;
         if (sortKey === "topic") apiSortField = "topic.topic_name";
