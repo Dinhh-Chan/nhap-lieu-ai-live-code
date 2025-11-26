@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { StudentSubmissionsApi } from "@/services/student-submissions";
 import type {
@@ -53,24 +53,15 @@ const statusOptions = [
 export default function SubmissionHistory() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
-  const [sortKey, setSortKey] = useState<string | undefined>(undefined);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [searchTerm, setSearchTerm] = useState("");
   const [selectedSubmission, setSelectedSubmission] = useState<StudentSubmission | null>(null);
 
   const { data, isLoading, isFetching, error } = useQuery<StudentSubmissionsPageResponse>({
-    queryKey: ["submission-history", page, limit, statusFilter, sortKey, sortDir],
+    queryKey: ["submission-history", page, limit],
     queryFn: () => {
       const params: StudentSubmissionsParams = {
         page,
         limit,
       };
-      if (statusFilter) params.status = statusFilter;
-      if (sortKey) {
-        params.sort = sortKey;
-        params.order = sortDir;
-      }
       return StudentSubmissionsApi.getPage(params);
     },
   });
@@ -78,22 +69,6 @@ export default function SubmissionHistory() {
   const submissions = data?.data?.result ?? [];
   const total = data?.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil((total || 0) / limit));
-
-  const filteredSubmissions = useMemo(() => {
-    if (!searchTerm.trim()) return submissions;
-    const keyword = searchTerm.trim().toLowerCase();
-    return submissions.filter((submission) => {
-      const problemName = submission.problem?.name?.toLowerCase() ?? "";
-      const username = submission.student?.username?.toLowerCase() ?? "";
-      const fullname = submission.student?.fullname?.toLowerCase() ?? "";
-      return (
-        problemName.includes(keyword) ||
-        username.includes(keyword) ||
-        fullname.includes(keyword) ||
-        submission.submission_id?.toLowerCase().includes(keyword)
-      );
-    });
-  }, [searchTerm, submissions]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -175,56 +150,6 @@ export default function SubmissionHistory() {
 
       <div className="flex flex-wrap items-center gap-4">
         <Select
-          value={statusFilter ?? "__all__"}
-          onValueChange={(value) => {
-            setStatusFilter(value === "__all__" ? undefined : value);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-52">
-            <SelectValue placeholder="Trạng thái" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">Tất cả trạng thái</SelectItem>
-            {statusOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={sortKey ?? "__default__"}
-          onValueChange={(value) => {
-            setSortKey(value === "__default__" ? undefined : value);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-52">
-            <SelectValue placeholder="Sắp xếp theo" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__default__">Mặc định</SelectItem>
-            <SelectItem value="submitted_at">Thời gian nộp</SelectItem>
-            <SelectItem value="score">Điểm số</SelectItem>
-            <SelectItem value="execution_time_ms">Thời gian chạy</SelectItem>
-            <SelectItem value="test_cases_passed">Test cases đúng</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => {
-            setSortDir((prev) => (prev === "desc" ? "asc" : "desc"));
-            setPage(1);
-          }}
-        >
-          <ArrowUpDown className="h-4 w-4" />
-        </Button>
-
-        <Select
           value={String(limit)}
           onValueChange={(value) => {
             setLimit(Number(value));
@@ -241,27 +166,10 @@ export default function SubmissionHistory() {
           </SelectContent>
         </Select>
 
-        <div className="relative flex-1 min-w-[220px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder="Tìm theo bài tập, mã bài nộp, học sinh..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
-
         <Button
           variant="outline"
           onClick={() => {
-            setStatusFilter(undefined);
-            setSortKey(undefined);
-            setSortDir("desc");
             setLimit(10);
-            setSearchTerm("");
             setPage(1);
           }}
         >
@@ -285,7 +193,7 @@ export default function SubmissionHistory() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredSubmissions.map((submission) => (
+            {submissions.map((submission) => (
               <TableRow key={submission._id}>
                 <TableCell>
                   <div className="space-y-1">
@@ -409,7 +317,7 @@ export default function SubmissionHistory() {
           </TableBody>
         </Table>
 
-        {filteredSubmissions.length === 0 && (
+        {submissions.length === 0 && (
           <div className="py-12 text-center text-muted-foreground">Không tìm thấy bài nộp nào</div>
         )}
       </div>

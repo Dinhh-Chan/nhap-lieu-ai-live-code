@@ -29,6 +29,10 @@ export const ContestsApi = {
     const res = await authenticatedApi.put(`/contests/${id}`, dto);
     return res.data;
   },
+  delete: async (id: string) => {
+    const res = await authenticatedApi.delete(`/contests/${id}`);
+    return res.data;
+  },
 };
 
 export const ContestUsersApi = {
@@ -38,16 +42,47 @@ export const ContestUsersApi = {
     });
     return res.data;
   },
+  remove: async (contestId: string, userId: string) => {
+    const res = await authenticatedApi.delete(`/contest-users/${contestId}/users/${userId}`);
+    return res.data;
+  },
+  approve: async (contestId: string, userId: string) => {
+    const res = await authenticatedApi.put(`/contest-users/${contestId}/users/${userId}/approve`);
+    return res.data;
+  },
+  reject: async (contestId: string, userId: string) => {
+    const res = await authenticatedApi.put(`/contest-users/${contestId}/users/${userId}/reject`);
+    return res.data;
+  },
+  deleteById: async (contestUserId: string) => {
+    const res = await authenticatedApi.delete(`/contest-users/${contestUserId}`);
+    return res.data;
+  },
+  clear: async (contestId: string) => {
+    const res = await authenticatedApi.delete(`/contest-users/${contestId}/users/all`);
+    return res.data;
+  },
 };
 
 export const ContestProblemsApi = {
-  addMultiple: async (
-    contestId: string,
-    problems: { problem_id: string; order_index: number; score: number; is_visible: boolean }[],
-  ) => {
+  addMultiple: async (contestId: string, problems: string[]) => {
     const res = await authenticatedApi.post(`/contest-problems/${contestId}/problems/add-multiple`, {
       problems,
     });
+    return res.data;
+  },
+  remove: async (contestProblemId: string) => {
+    const res = await authenticatedApi.delete(`/contest-problems/${contestProblemId}`);
+    return res.data;
+  },
+  updateVisibility: async (contestId: string, problemId: string, isVisible: boolean) => {
+    const res = await authenticatedApi.patch(`/contest-problems/${contestId}/${problemId}/visibility`, {
+      is_visible: isVisible,
+    });
+    return res.data;
+  },
+  clear: async (contestId: string) => {
+    const res = await authenticatedApi.delete(`/contest-problems/${contestId}/problems/all`);
     return res.data;
   },
 };

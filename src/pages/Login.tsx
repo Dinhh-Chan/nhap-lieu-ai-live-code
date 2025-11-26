@@ -35,9 +35,14 @@ const Login = () => {
       });
 
       if (response.success) {
-        // Decode JWT để lấy thông tin user
-        const tokenPayload = JSON.parse(atob(response.data.accessToken.split('.')[1]));
-        
+        const tokenPayload = JSON.parse(atob(response.data.accessToken.split(".")[1]));
+        const role = (tokenPayload.systemRole ?? "").toLowerCase();
+        const allowedRoles = ["admin", "teacher"];
+        if (!allowedRoles.includes(role)) {
+          toast.error("Tài khoản của bạn không có quyền truy cập hệ thống.");
+          return;
+        }
+
         login(
           response.data.accessToken,
           response.data.refreshToken,
@@ -51,7 +56,7 @@ const Login = () => {
             lastName: tokenPayload.lastName,
             platform: tokenPayload.platform,
             systemRole: tokenPayload.systemRole,
-          }
+          },
         );
 
         toast.success("Đăng nhập thành công!");

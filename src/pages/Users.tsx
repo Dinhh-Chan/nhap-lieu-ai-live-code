@@ -39,8 +39,6 @@ export default function Users() {
   const [open, setOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<string | undefined>(undefined);
-  const [genderFilter, setGenderFilter] = useState<string | undefined>(undefined);
   const [sortKey, setSortKey] = useState<
     | "username"
     | "fullname"
@@ -55,27 +53,42 @@ export default function Users() {
   const [pageSize, setPageSize] = useState(10);
   const queryClient = useQueryClient();
 
-  const { data: usersData, isLoading, error } = useQuery({ 
-    queryKey: ["users", page, pageSize, search, roleFilter, genderFilter, sortKey, sortDir], 
-    queryFn: () => {
+  const trimmedSearch = search.trim();
+  const { data: usersData, isLoading, error } = useQuery({
+    queryKey: ["users", page, pageSize, trimmedSearch, sortKey, sortDir],
+    queryFn: async () => {
+      if (trimmedSearch) {
+        const response = await UsersApi.searchByUsernamePage(trimmedSearch, page, pageSize, {
+          sort: "username",
+        });
+        return {
+          list: Array.isArray(response.result) ? response.result : [],
+          total: response.total ?? response.result?.length ?? 0,
+          page: response.page ?? page,
+          limit: response.limit ?? pageSize,
+        };
+      }
+
       const params: UserListParams = {
         page,
-        limit: pageSize
+        limit: pageSize,
       };
-      
-      if (search) params.search = search;
-      if (roleFilter) params.systemRole = roleFilter;
-      if (genderFilter) params.gender = genderFilter;
       if (sortKey) {
         params.sort = sortKey;
         params.order = sortDir;
       }
-      
-      return UsersApi.list(page, pageSize, params);
-    }
+      const response = await UsersApi.list(page, pageSize, params);
+      const data = response?.data;
+      return {
+        list: Array.isArray(data?.result) ? data?.result : [],
+        total: data?.total ?? 0,
+        page: data?.page ?? page,
+        limit: data?.limit ?? pageSize,
+      };
+    },
   });
 
-  const users = useMemo(() => (usersData?.data?.result ? usersData.data.result : []), [usersData]);
+  const users = usersData?.list ?? [];
   
   const [visibleCols, setVisibleCols] = useState({
     no: true,
@@ -119,9 +132,10 @@ export default function Users() {
   };
 
   // Dữ liệu đã được lọc và sắp xếp từ server
-  const paged = useMemo(() => Array.isArray(users) ? users : [], [users]);
-  const total = usersData?.data?.total || 0;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const paged = useMemo(() => (Array.isArray(users) ? users : []), [users]);
+  const total = usersData?.total || 0;
+  const currentLimit = usersData?.limit ?? pageSize;
+  const totalPages = Math.max(1, Math.ceil(total / currentLimit));
   const startPage = useMemo(() => Math.floor((page - 1) / 10) * 10 + 1, [page]);
   const endPage = useMemo(() => Math.min(totalPages, startPage + 9), [totalPages, startPage]);
 
@@ -210,29 +224,6 @@ export default function Users() {
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={roleFilter} onValueChange={(v) => { setPage(1); setRoleFilter(v); }}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Vai trò" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Admin">Admin</SelectItem>
-              <SelectItem value="Teacher">Teacher</SelectItem>
-              <SelectItem value="Student">Student</SelectItem>
-              <SelectItem value="User">User</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Select value={genderFilter} onValueChange={(v) => { setPage(1); setGenderFilter(v); }}>
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="Giới tính" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Male">Nam</SelectItem>
-              <SelectItem value="Female">Nữ</SelectItem>
-              <SelectItem value="Other">Khác</SelectItem>
-            </SelectContent>
-          </Select>
-          
           <Input
             placeholder="Tìm kiếm người dùng"
             value={search}
@@ -240,12 +231,10 @@ export default function Users() {
             className="w-64"
           />
           
-          <Button variant="outline" onClick={() => { 
-            setSearch(""); 
-            setRoleFilter(undefined); 
-            setGenderFilter(undefined); 
-            setPage(1); 
-          }}>
+        <Button variant="outline" onClick={() => { 
+          setSearch(""); 
+          setPage(1); 
+        }}>
             Reset
           </Button>
           
@@ -418,7 +407,7 @@ export default function Users() {
       ) : paged.length === 0 ? (
         <div className="border rounded-lg p-8 text-center">
           <div className="text-muted-foreground mb-4">Không tìm thấy người dùng nào</div>
-          <Button onClick={() => { setSearch(""); setRoleFilter(undefined); setGenderFilter(undefined); setPage(1); }}>
+          <Button onClick={() => { setSearch(""); setPage(1); }}>
             Xóa bộ lọc
           </Button>
         </div>
@@ -653,7 +642,7 @@ export default function Users() {
         <div className="mt-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="text-sm text-muted-foreground">
-              Hiển thị {((page - 1) * pageSize) + 1} - {Math.min(page * pageSize, total)} trong tổng số {total} người dùng
+              Hiển thị {(page - 1) * currentLimit + 1} - {Math.min(page * currentLimit, total)} trong tổng số {total} người dùng
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Số dòng:</span>
