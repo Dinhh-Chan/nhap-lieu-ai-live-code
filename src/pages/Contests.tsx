@@ -222,6 +222,12 @@ export default function Contests() {
     },
   });
 
+  const isDateInPast = (value?: string) => {
+    if (!value) return false;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+    return date.getTime() < Date.now();
+  };
   const formToContestPayload = (values: ReturnType<typeof createEmptyContestForm>): ContestCreateDto => ({
     contest_name: values.name?.trim() || "Contest mới",
     description: values.description || "",
@@ -236,6 +242,14 @@ export default function Contests() {
   });
 
   const handleCreate = () => {
+    if (isDateInPast(form.start_time)) {
+      toast.error("Thời gian bắt đầu không được ở quá khứ");
+      return;
+    }
+    if (isDateInPast(form.end_time)) {
+      toast.error("Thời gian kết thúc không được ở quá khứ");
+      return;
+    }
     const payload = formToContestPayload(form);
     createContest(payload);
   };
@@ -260,6 +274,16 @@ export default function Contests() {
   const handleWizardContestSubmit = async () => {
     const payload = formToContestPayload(wizardForm);
     try {
+      if (!wizardContestId) {
+        if (isDateInPast(wizardForm.start_time)) {
+          toast.error("Thời gian bắt đầu không được ở quá khứ");
+          return;
+        }
+        if (isDateInPast(wizardForm.end_time)) {
+          toast.error("Thời gian kết thúc không được ở quá khứ");
+          return;
+        }
+      }
       if (wizardContestId) {
         const { created_time, ...updatePayload } = payload;
         await updateWizardContest(updatePayload);
@@ -570,9 +594,9 @@ export default function Contests() {
                     <SelectValue placeholder="Chọn loại" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="practice">practice</SelectItem>
-                    <SelectItem value="exam">exam</SelectItem>
-                    <SelectItem value="test">test</SelectItem>
+                    <SelectItem value="practice">Thực hành</SelectItem>
+                    <SelectItem value="exam">Bài tập</SelectItem>
+                    <SelectItem value="test">Kiểm tra</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -968,9 +992,9 @@ export default function Contests() {
                         <SelectValue placeholder="Chọn loại" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="practice">practice</SelectItem>
-                        <SelectItem value="exam">exam</SelectItem>
-                        <SelectItem value="test">test</SelectItem>
+                        <SelectItem value="practice">Thực hành</SelectItem>
+                        <SelectItem value="exam">Bài tập</SelectItem>
+                        <SelectItem value="test">Kiểm tra</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1026,6 +1050,8 @@ export default function Contests() {
             <TableBody>
               {visibleContests.map((c) => {
                 const contestName = "contest_name" in c ? c.contest_name : (c as any).name;
+                const endTime = c.end_time ? new Date(c.end_time) : null;
+                const hasEnded = endTime ? endTime.getTime() < Date.now() : false;
                 return (
                   <TableRow key={c._id}>
                   <TableCell className="font-medium">{contestName}</TableCell>
@@ -1042,7 +1068,9 @@ export default function Contests() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {"is_active" in c ? (
+                    {hasEnded ? (
+                      <Badge variant="destructive">Đã kết thúc</Badge>
+                    ) : "is_active" in c ? (
                       <Badge variant={c.is_active ? "default" : "secondary"}>
                         {c.is_active ? "Đang mở" : "Tạm dừng"}
                       </Badge>
