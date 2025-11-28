@@ -43,27 +43,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 export default function StudentSubmissions() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
-  const [sortKey, setSortKey] = useState<string | undefined>(undefined);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selectedSubmission, setSelectedSubmission] = useState<StudentSubmission | null>(null);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [searchTerm, setSearchTerm] = useState("");
 
   const { data: submissionsData, isLoading, isFetching, error } = useQuery<StudentSubmissionsPageResponse>({
-    queryKey: ["student-submissions-page", id, page, limit, statusFilter, sortKey, sortDir],
+    queryKey: ["student-submissions-page", id, page, limit],
     queryFn: () => {
       const params: StudentSubmissionsParams = {
         page,
         limit,
         student_id: id,
       };
-      if (statusFilter) params.status = statusFilter;
-      if (sortKey) {
-        params.sort = sortKey;
-        params.order = sortDir;
-      }
       return StudentSubmissionsApi.getPage(params);
     },
     enabled: !!id,
@@ -73,15 +64,6 @@ export default function StudentSubmissions() {
     () => submissionsData?.data?.result ?? [],
     [submissionsData]
   );
-
-  const filteredSubmissions = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return submissions;
-    }
-    return submissions.filter((submission) =>
-      submission.problem?.name?.toLowerCase().includes(searchTerm.trim().toLowerCase())
-    );
-  }, [searchTerm, submissions]);
 
   const total = submissionsData?.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil((total || 0) / limit));
@@ -231,60 +213,7 @@ export default function StudentSubmissions() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-wrap items-center gap-4 mb-6">
-        <Select
-          value={statusFilter ?? "__all__"}
-          onValueChange={(value) => {
-            setStatusFilter(value === "__all__" ? undefined : value);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-52">
-            <SelectValue placeholder="Trạng thái" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">Tất cả trạng thái</SelectItem>
-            <SelectItem value="accepted">Đã chấp nhận</SelectItem>
-            <SelectItem value="wrong_answer">Sai đáp án</SelectItem>
-            <SelectItem value="time_limit_exceeded">Quá thời gian</SelectItem>
-            <SelectItem value="runtime_error">Lỗi runtime</SelectItem>
-            <SelectItem value="compilation_error">Lỗi biên dịch</SelectItem>
-            <SelectItem value="pending">Đang chờ</SelectItem>
-            <SelectItem value="running">Đang chạy</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={sortKey ?? "__default__"}
-          onValueChange={(value) => {
-            setSortKey(value === "__default__" ? undefined : value);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-52">
-            <SelectValue placeholder="Sắp xếp theo" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__default__">Mặc định</SelectItem>
-            <SelectItem value="submitted_at">Thời gian nộp</SelectItem>
-            <SelectItem value="score">Điểm số</SelectItem>
-            <SelectItem value="execution_time_ms">Thời gian chạy</SelectItem>
-            <SelectItem value="test_cases_passed">Test cases đúng</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => {
-            setSortDir((prev) => (prev === "desc" ? "asc" : "desc"));
-            setPage(1);
-          }}
-        >
-          <ArrowUpDown className="h-4 w-4" />
-        </Button>
-
         <Select
           value={String(limit)}
           onValueChange={(value) => {
@@ -292,7 +221,7 @@ export default function StudentSubmissions() {
             setPage(1);
           }}
         >
-          <SelectTrigger className="w-36">
+          <SelectTrigger className="w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -302,22 +231,11 @@ export default function StudentSubmissions() {
           </SelectContent>
         </Select>
 
-        <Input
-          placeholder="Tìm theo tên bài"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-64"
-        />
-
         <Button
           variant="outline"
           onClick={() => {
-            setStatusFilter(undefined);
-            setSortKey(undefined);
-            setSortDir("desc");
             setPage(1);
             setLimit(10);
-            setSearchTerm("");
           }}
         >
           Đặt lại
@@ -340,7 +258,7 @@ export default function StudentSubmissions() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredSubmissions.map((submission) => (
+            {submissions.map((submission) => (
               <TableRow key={submission._id}>
                 <TableCell>
                   <div className="space-y-1">
@@ -456,7 +374,7 @@ export default function StudentSubmissions() {
         </Table>
       </div>
 
-      {filteredSubmissions.length === 0 && (
+      {submissions.length === 0 && (
         <div className="text-center py-8">
           <div className="text-muted-foreground">Không có bài nộp nào</div>
         </div>

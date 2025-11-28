@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Users, Code, Calendar, ListOrdered, CheckCircle2, XCircle, Edit, AlertCircle, Loader, CheckCircle, XOctagon, Filter } from "lucide-react";
+import { ArrowLeft, Users, Code, Calendar, ListOrdered, CheckCircle2, XCircle, Edit, AlertCircle, Loader, CheckCircle, XOctagon, Filter, Trash2, Clock3, Ban } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ContestsApi, ContestUsersApi, ContestProblemsApi, ContestSubmissionsApi } from "@/services/contests";
 import { ProblemsApi } from "@/services/problems";
@@ -25,6 +25,7 @@ import { TopicsApi } from "@/services/topics";
 import type { Topic } from "@/services/topics";
 import { SubTopicsApi } from "@/services/sub-topics";
 import type { SubTopic } from "@/services/sub-topics";
+import { toast } from "sonner";
 
 const submissionStatusText: Record<string, string> = {
   accepted: "Đã chấp nhận",
@@ -69,6 +70,36 @@ const getSubmissionStatusIcon = (status: string) => {
       return <Loader className="h-4 w-4 text-yellow-500 animate-spin" />;
     default:
       return <AlertCircle className="h-4 w-4 text-muted-foreground" />;
+  }
+};
+
+const getContestUserStatusMeta = (status?: string) => {
+  const normalized = (status ?? "").toLowerCase();
+  switch (normalized) {
+    case "enrolled":
+      return {
+        label: "Đã tham gia",
+        badge: "bg-green-100 text-green-700",
+        icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+      };
+    case "pending":
+      return {
+        label: "Đang chờ duyệt",
+        badge: "bg-yellow-100 text-yellow-800",
+        icon: <Clock3 className="h-3.5 w-3.5" />,
+      };
+    case "rejected":
+      return {
+        label: "Đã từ chối",
+        badge: "bg-red-100 text-red-700",
+        icon: <XCircle className="h-3.5 w-3.5" />,
+      };
+    default:
+      return {
+        label: status ?? "Không xác định",
+        badge: "bg-slate-100 text-slate-700",
+        icon: <Ban className="h-3.5 w-3.5" />,
+      };
   }
 };
 
@@ -124,6 +155,18 @@ export default function ContestDetail() {
   const [problemLimit, setProblemLimit] = useState(7);
   const [problemFilters, setProblemFilters] = useState<ProblemFilterState>({});
   const [problemFilterDialogOpen, setProblemFilterDialogOpen] = useState(false);
+  const [removingProblemId, setRemovingProblemId] = useState<string | null>(null);
+  const [visibilityUpdatingId, setVisibilityUpdatingId] = useState<string | null>(null);
+  const [userStatusFilter, setUserStatusFilter] = useState<"all" | "enrolled" | "pending" | "rejected">("all");
+  const [approvingUserId, setApprovingUserId] = useState<string | null>(null);
+  const [rejectingUserId, setRejectingUserId] = useState<string | null>(null);
+  const [removingContestUserId, setRemovingContestUserId] = useState<string | null>(null);
+  const userStatusOptions: { value: "all" | "enrolled" | "pending" | "rejected"; label: string }[] = [
+    { value: "all", label: "Tất cả" },
+    { value: "enrolled", label: "Đã tham gia" },
+    { value: "pending", label: "Đang chờ duyệt" },
+    { value: "rejected", label: "Đã từ chối" },
+  ];
   const [tempProblemFilters, setTempProblemFilters] = useState<ProblemFilterState>({});
   const [selectedProblemIds, setSelectedProblemIds] = useState<string[]>([]);
   const [openEditContest, setOpenEditContest] = useState(false);
@@ -212,6 +255,91 @@ export default function ContestDetail() {
       setSelectedClassId(null);
     }
   };
+  const handleRemoveContestProblem = (contestProblemId?: string, problemName?: string) => {
+    if (!contestProblemId) return;
+    const confirmed = window.confirm(
+      `Bạn có chắc muốn xóa bài "${problemName ?? ""}" khỏi contest?`,
+    );
+    if (!confirmed) return;
+    removeContestProblem(contestProblemId);
+  };
+  const handleToggleProblemVisibility = (problemId?: string, currentVisible?: boolean) => {
+    if (!problemId || typeof currentVisible !== "boolean") return;
+    toggleContestProblemVisibility({ problemId, nextVisible: !currentVisible });
+  };
+  const filteredContestUsers = useMemo(() => {
+    if (!contest?.contest_users) return [];
+    if (userStatusFilter === "all") return contest.contest_users;
+    return contest.contest_users.filter(
+      (cu) => (cu.status ?? "").toLowerCase() === userStatusFilter,
+    );
+  }, [contest?.contest_users, userStatusFilter]);
+  const { mutate: approveContestUser } = useMutation({
+    mutationFn: (payload: { contestId: string; userId: string }) =>
+      ContestUsersApi.approve(payload.contestId, payload.userId),
+    onMutate: ({ userId }) => {
+      setApprovingUserId(userId);
+    },
+    onSuccess: () => {
+      toast.success("Đã duyệt người dùng");
+      queryClient.invalidateQueries({ queryKey: ["contest", id] });
+    },
+    onError: () => {
+      toast.error("Không thể duyệt người dùng, vui lòng thử lại");
+    },
+    onSettled: () => {
+      setApprovingUserId(null);
+    },
+  });
+  const { mutate: rejectContestUser } = useMutation({
+    mutationFn: (payload: { contestId: string; userId: string }) =>
+      ContestUsersApi.reject(payload.contestId, payload.userId),
+    onMutate: ({ userId }) => {
+      setRejectingUserId(userId);
+    },
+    onSuccess: () => {
+      toast.success("Đã từ chối yêu cầu tham gia");
+      queryClient.invalidateQueries({ queryKey: ["contest", id] });
+    },
+    onError: () => {
+      toast.error("Không thể từ chối yêu cầu, vui lòng thử lại");
+    },
+    onSettled: () => {
+      setRejectingUserId(null);
+    },
+  });
+  const { mutate: removeContestUserById } = useMutation({
+    mutationFn: (contestUserId: string) => ContestUsersApi.deleteById(contestUserId),
+    onMutate: (contestUserId: string) => {
+      setRemovingContestUserId(contestUserId);
+    },
+    onSuccess: () => {
+      toast.success("Đã xóa người dùng khỏi contest");
+      queryClient.invalidateQueries({ queryKey: ["contest", id] });
+    },
+    onError: () => {
+      toast.error("Không thể xóa người dùng, vui lòng thử lại");
+    },
+    onSettled: () => {
+      setRemovingContestUserId(null);
+    },
+  });
+  const handleApproveUser = (contestUserId?: string, userId?: string) => {
+    if (!contestUserId || !userId || !id) return;
+    approveContestUser({ contestId: id, userId });
+  };
+  const handleRejectUser = (contestUserId?: string, userId?: string) => {
+    if (!contestUserId || !userId || !id) return;
+    const confirmed = window.confirm("Bạn có chắc muốn từ chối yêu cầu tham gia này?");
+    if (!confirmed) return;
+    rejectContestUser({ contestId: id, userId });
+  };
+  const handleRemoveContestUser = (contestUserId?: string, fullname?: string) => {
+    if (!contestUserId) return;
+    const confirmed = window.confirm(`Xóa người dùng "${fullname ?? ""}" khỏi contest?`);
+    if (!confirmed) return;
+    removeContestUserById(contestUserId);
+  };
 
   // Khi mở dialog chỉnh sửa, điền form với dữ liệu hiện tại
   const handleOpenEditDialog = () => {
@@ -293,11 +421,21 @@ export default function ContestDetail() {
         }
         return { mode: "subTopic", data: { list, total, page, limit } };
       }
-      const params: any = {};
-      if (searchProblem) {
-        const filters: any[] = [{ field: "name", operator: "CONTAIN", values: [searchProblem] }];
-        params.filters = JSON.stringify(filters);
+
+      const trimmedSearch = searchProblem.trim();
+      if (trimmedSearch) {
+        const filters = [{ field: "name", operator: "contain", values: [trimmedSearch] }];
+        const sort: Record<string, number> = { difficulty: 1 };
+        const options: any = { filters, sort };
+        if (problemFilters.topicId) options.topic_id = problemFilters.topicId;
+        if (problemFilters.difficulty) options.difficulty = Number(problemFilters.difficulty);
+        return { mode: "paged", data: await ProblemsApi.listPage(problemPage, problemLimit, options) };
       }
+
+      const params: any = {
+        page: problemPage,
+        limit: problemLimit,
+      };
       if (problemFilters.difficulty) {
         params.difficulty = Number(problemFilters.difficulty);
       }
@@ -340,12 +478,44 @@ export default function ContestDetail() {
   const totalProblemPages = Math.max(1, Math.ceil(problemTotal / Math.max(1, problemsPerPage)));
 
   const { mutate: addProblemsToContest, isPending: addingProblems } = useMutation({
-    mutationFn: (payload: { problem_id: string; order_index: number; score: number; is_visible: boolean }[]) =>
-      ContestProblemsApi.addMultiple(id!, payload),
+    mutationFn: (problemIds: string[]) => ContestProblemsApi.addMultiple(id!, problemIds),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contest", id] });
       setOpenAddProblem(false);
       setSelectedProblemIds([]);
+    },
+  });
+  const { mutate: removeContestProblem } = useMutation({
+    mutationFn: (contestProblemId: string) => ContestProblemsApi.remove(contestProblemId),
+    onMutate: (contestProblemId: string) => {
+      setRemovingProblemId(contestProblemId);
+    },
+    onSuccess: () => {
+      toast.success("Đã xóa bài tập khỏi contest");
+      queryClient.invalidateQueries({ queryKey: ["contest", id] });
+    },
+    onError: () => {
+      toast.error("Không thể xóa bài tập, vui lòng thử lại");
+    },
+    onSettled: () => {
+      setRemovingProblemId(null);
+    },
+  });
+  const { mutate: toggleContestProblemVisibility } = useMutation({
+    mutationFn: ({ problemId, nextVisible }: { problemId: string; nextVisible: boolean }) =>
+      ContestProblemsApi.updateVisibility(id!, problemId, nextVisible),
+    onMutate: ({ problemId }) => {
+      setVisibilityUpdatingId(problemId);
+    },
+    onSuccess: () => {
+      toast.success("Đã cập nhật trạng thái hiển thị");
+      queryClient.invalidateQueries({ queryKey: ["contest", id] });
+    },
+    onError: () => {
+      toast.error("Không thể cập nhật hiển thị, vui lòng thử lại");
+    },
+    onSettled: () => {
+      setVisibilityUpdatingId(null);
     },
   });
 
@@ -908,19 +1078,7 @@ export default function ContestDetail() {
                   </div>
                   <DialogFooter>
                     <Button variant="secondary" onClick={() => { setOpenAddProblem(false); setSelectedProblemIds([]); }}>Đóng</Button>
-                    <Button
-                      onClick={() => {
-                        const base = contest.contest_problems?.length ?? 0;
-                        const payload = selectedProblemIds.map((pid, idx) => ({
-                          problem_id: pid,
-                          order_index: base + idx + 1,
-                          score: 100,
-                          is_visible: true,
-                        }));
-                        addProblemsToContest(payload);
-                      }}
-                      disabled={selectedProblemIds.length === 0 || addingProblems}
-                    >
+                    <Button onClick={() => addProblemsToContest(selectedProblemIds)} disabled={selectedProblemIds.length === 0 || addingProblems}>
                       {addingProblems ? "Đang thêm..." : `Thêm bài đã chọn (${selectedProblemIds.length})`}
                     </Button>
                   </DialogFooter>
@@ -1207,6 +1365,7 @@ export default function ContestDetail() {
                       <TableHead>Tên bài</TableHead>
                       <TableHead>Điểm</TableHead>
                       <TableHead>Hiển thị</TableHead>
+                      <TableHead className="text-right">Hành động</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1214,7 +1373,36 @@ export default function ContestDetail() {
                       <TableRow key={cp._id}>
                         <TableCell>{cp.problem?.name || "—"}</TableCell>
                         <TableCell>{cp.score}</TableCell>
-                        <TableCell>{cp.is_visible ? "Có" : "Không"}</TableCell>
+                        <TableCell>
+                          <Switch
+                            checked={!!cp.is_visible}
+                            disabled={!cp.problem_id || visibilityUpdatingId === cp.problem_id}
+                            onCheckedChange={() =>
+                              handleToggleProblemVisibility(cp.problem_id, cp.is_visible ?? true)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => handleRemoveContestProblem(cp._id, cp.problem?.name)}
+                            disabled={!cp._id || removingProblemId === cp._id}
+                          >
+                            {removingProblemId === cp._id ? (
+                              <>
+                                <Loader className="mr-2 h-4 w-4 animate-spin" />
+                                Đang xóa
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Xóa
+                              </>
+                            )}
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1223,6 +1411,18 @@ export default function ContestDetail() {
             </TabsContent>
 
             <TabsContent value="users">
+              <div className="mb-4 flex flex-wrap gap-2">
+                {userStatusOptions.map((option) => (
+                  <Button
+                    key={option.value}
+                    variant={userStatusFilter === option.value ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setUserStatusFilter(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
               <div className="rounded border overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -1230,19 +1430,100 @@ export default function ContestDetail() {
                       <TableHead>Người dùng</TableHead>
                       <TableHead>Vai trò</TableHead>
                       <TableHead>Trạng thái</TableHead>
+                      <TableHead className="text-right">Hành động</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {contest.contest_users?.map((cu) => (
-                      <TableRow key={cu._id}>
-                        <TableCell>
-                          <div className="font-medium">{cu.user?.fullname || "—"}</div>
-                          <div className="text-xs text-muted-foreground">@{cu.user?.username || "—"}</div>
+                    {filteredContestUsers.length > 0 ? (
+                      filteredContestUsers.map((cu) => {
+                        const statusMeta = getContestUserStatusMeta(cu.status);
+                        const normalizedStatus = (cu.status ?? "").toLowerCase();
+                        return (
+                          <TableRow key={cu._id}>
+                            <TableCell>
+                              <div className="font-medium">{cu.user?.fullname || "—"}</div>
+                              <div className="text-xs text-muted-foreground">@{cu.user?.username || "—"}</div>
+                            </TableCell>
+                            <TableCell>{cu.is_manager ? "Quản trị" : "Thí sinh"}</TableCell>
+                            <TableCell>
+                              <Badge className={`inline-flex items-center gap-1 ${statusMeta.badge}`}>
+                                {statusMeta.icon}
+                                <span>{statusMeta.label}</span>
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                {normalizedStatus === "pending" && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleApproveUser(cu._id, cu.user_id)}
+                                      disabled={approvingUserId === cu.user_id}
+                                    >
+                                      {approvingUserId === cu.user_id ? (
+                                        <>
+                                          <Loader className="mr-2 h-4 w-4 animate-spin" />
+                                          Đang duyệt
+                                        </>
+                                      ) : (
+                                        <>
+                                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                                          Duyệt
+                                        </>
+                                      )}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleRejectUser(cu._id, cu.user_id)}
+                                      disabled={rejectingUserId === cu.user_id}
+                                    >
+                                      {rejectingUserId === cu.user_id ? (
+                                        <>
+                                          <Loader className="mr-2 h-4 w-4 animate-spin" />
+                                          Đang từ chối
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Ban className="mr-2 h-4 w-4" />
+                                          Từ chối
+                                        </>
+                                      )}
+                                    </Button>
+                                  </>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-red-600 hover:text-red-700"
+                                  onClick={() => handleRemoveContestUser(cu._id, cu.user?.fullname)}
+                                  disabled={removingContestUserId === cu._id}
+                                >
+                                  {removingContestUserId === cu._id ? (
+                                    <>
+                                      <Loader className="mr-2 h-4 w-4 animate-spin" />
+                                      Đang xóa
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Xóa
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
+                          Không có người dùng phù hợp
                         </TableCell>
-                        <TableCell>{cu.is_manager ? "Quản trị" : "Thí sinh"}</TableCell>
-                        <TableCell>{cu.status}</TableCell>
                       </TableRow>
-                    ))}
+                    )}
                   </TableBody>
                 </Table>
               </div>
